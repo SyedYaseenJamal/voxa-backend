@@ -84,6 +84,13 @@ const seedDatabase = async () => {
     }
     console.log(`✅ ${permissionNames.length} permissions seeded.`);
 
+    // 1.5 Seed Plans
+    console.log('\n[1.5] Seeding Plans...');
+    const Plan = (await import('../modules/billing/plan.model.js')).default;
+    await Plan.findOneAndUpdate({ name: 'Pro Prepaid' }, { name: 'Pro Prepaid', type: 'prepaid', cost: 99, tokens: 3000, description: '3000 tokens for $99 upfront' }, { upsert: true });
+    await Plan.findOneAndUpdate({ name: 'Enterprise Postpaid' }, { name: 'Enterprise Postpaid', type: 'postpaid', cost: 0, tokens: 5000, description: '5000 tokens cap, pay at end of month' }, { upsert: true });
+    console.log(`✅ Plans seeded.`);
+
     // 2. Seed Super Admin Role (voxa scope — all permissions)
     console.log('\n[2] Seeding Super Admin role...');
     const superAdminRole = await Role.findOneAndUpdate(

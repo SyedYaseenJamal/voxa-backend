@@ -17,6 +17,7 @@ import permissionRoutes from './modules/permissions/permission.routes.js';
 import companyRoutes from './modules/companies/company.routes.js';
 import adminUserRoutes from './modules/admin-users/adminUser.routes.js';
 import companyUserRoutes from './modules/company-users/companyUser.routes.js';
+import billingRoutes from './modules/billing/billing.routes.js';
 
 // Connect to MongoDB
 await connectDB();
@@ -37,6 +38,7 @@ app.use('/api/v1/permissions', permissionRoutes);
 app.use('/api/v1/companies', companyRoutes);
 app.use('/api/v1/admin-users', adminUserRoutes);
 app.use('/api/v1/company-users', companyUserRoutes);
+app.use('/api/v1/billing', billingRoutes);
 
 // Swagger docs (available in all environments — restrict in prod if needed)
 const CSS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui.min.css';

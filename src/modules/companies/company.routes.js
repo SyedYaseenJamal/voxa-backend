@@ -4,7 +4,8 @@ import {
   getCompanies,
   getCompanyById,
   updateCompany,
-  updateCompanyStatus
+  updateCompanyStatus,
+  updateTenant
 } from './company.controller.js';
 import { protect } from '../../middlewares/authenticate.js';
 import { requireAdminPortal, requirePermission } from '../../middlewares/authorizePermission.js';
@@ -12,7 +13,8 @@ import {
   validateCreateCompany,
   validateUpdateCompany,
   validateUpdateCompanyStatus,
-  validateCompanyIdParam
+  validateCompanyIdParam,
+  validateUpdateTenant
 } from './company.validation.js';
 
 const router = express.Router();
@@ -54,7 +56,7 @@ router.use(protect, requireAdminPortal);
  */
 router.post(
   '/',
-  requirePermission('manage_companies'),
+  requirePermission('companies:create'),
   validateCreateCompany,
   createCompany
 );
@@ -73,7 +75,7 @@ router.post(
  */
 router.get(
   '/',
-  requirePermission('view_companies'),
+  requirePermission('companies:read'),
   getCompanies
 );
 
@@ -97,7 +99,7 @@ router.get(
  */
 router.get(
   '/:id',
-  requirePermission('view_companies'),
+  requirePermission('companies:read'),
   validateCompanyIdParam,
   getCompanyById
 );
@@ -128,7 +130,7 @@ router.get(
  */
 router.patch(
   '/:id',
-  requirePermission('manage_companies'),
+  requirePermission('companies:update'),
   validateUpdateCompany,
   updateCompany
 );
@@ -159,9 +161,42 @@ router.patch(
  */
 router.patch(
   '/:id/status',
-  requirePermission('manage_companies'),
+  requirePermission('companies:update'),
   validateUpdateCompanyStatus,
   updateCompanyStatus
+);
+
+/**
+ * @swagger
+ * /companies/{id}/tenant:
+ *   post:
+ *     summary: Update company tenant information (soft delete old, create new)
+ *     tags: [Companies]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             tenant_id: "TENANT-123"
+ *             contact_name: "Jane Doe"
+ *             contact_email: "jane@acme.com"
+ *     responses:
+ *       200:
+ *         description: Tenant info updated
+ */
+router.post(
+  '/:id/tenant',
+  requirePermission('companies:update'),
+  validateUpdateTenant,
+  updateTenant
 );
 
 export default router;

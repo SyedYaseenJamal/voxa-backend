@@ -12,7 +12,6 @@ import {
 import { protect } from '../../middlewares/authenticate.js';
 import { requireAdminPortal, requireCustomerPortal, requirePermission } from '../../middlewares/authorizePermission.js';
 import { validateCreateRole, validateUpdateRole, validateRoleIdParam } from './role.validation.js';
-import { PERMISSIONS } from '../../config/permissions.js';
 
 const router = express.Router();
 
@@ -51,7 +50,7 @@ router.use(protect); // All routes require authentication
  *                   type: string
  *           example:
  *             name: "DID Manager"
- *             permissions: ["manage_did", "view_did"]
+ *             permissions: ["did:create", "did:read"]
  *     responses:
  *       201:
  *         description: Role created
@@ -59,7 +58,7 @@ router.use(protect); // All routes require authentication
 router.post(
   '/',
   requireAdminPortal,
-  requirePermission(PERMISSIONS.MANAGE_ROLES),
+  requirePermission('roles:create'),
   validateCreateRole,
   createVoxaRole
 );
@@ -79,7 +78,7 @@ router.post(
 router.get(
   '/',
   requireAdminPortal,
-  requirePermission(PERMISSIONS.VIEW_ROLES),
+  requirePermission('roles:read'),
   getVoxaRoles
 );
 
@@ -110,7 +109,7 @@ router.get(
 router.patch(
   '/:id',
   requireAdminPortal,
-  requirePermission(PERMISSIONS.MANAGE_ROLES),
+  requirePermission('roles:update'),
   validateUpdateRole,
   updateVoxaRole
 );
@@ -136,7 +135,7 @@ router.patch(
 router.delete(
   '/:id',
   requireAdminPortal,
-  requirePermission(PERMISSIONS.MANAGE_ROLES),
+  requirePermission('roles:delete'),
   validateRoleIdParam,
   deleteVoxaRole
 );
@@ -157,7 +156,7 @@ router.delete(
  *         application/json:
  *           example:
  *             name: "Billing Manager"
- *             permissions: ["manage_billing", "view_billing"]
+ *             permissions: ["billing:read", "billing:update"]
  *     responses:
  *       201:
  *         description: Role created
@@ -165,7 +164,7 @@ router.delete(
 router.post(
   '/company',
   requireCustomerPortal,
-  requirePermission(PERMISSIONS.MANAGE_ROLES),
+  requirePermission('roles:create'),
   validateCreateRole,
   createCompanyRole
 );
@@ -185,7 +184,7 @@ router.post(
 router.get(
   '/company',
   requireCustomerPortal,
-  requirePermission(PERMISSIONS.VIEW_ROLES),
+  requirePermission('roles:read'),
   getCompanyRoles
 );
 
@@ -208,7 +207,7 @@ router.get(
  *       content:
  *         application/json:
  *           example:
- *             permissions: ["manage_billing", "view_billing", "view_did"]
+ *             permissions: ["billing:read", "billing:update", "did:read"]
  *     responses:
  *       200:
  *         description: Role updated
@@ -216,7 +215,7 @@ router.get(
 router.patch(
   '/company/:id',
   requireCustomerPortal,
-  requirePermission(PERMISSIONS.MANAGE_ROLES),
+  requirePermission('roles:update'),
   validateUpdateRole,
   updateCompanyRole
 );
@@ -242,7 +241,7 @@ router.patch(
 router.delete(
   '/company/:id',
   requireCustomerPortal,
-  requirePermission(PERMISSIONS.MANAGE_ROLES),
+  requirePermission('roles:delete'),
   validateRoleIdParam,
   deleteCompanyRole
 );

@@ -3,14 +3,27 @@ import { success, error as apiError } from '../../utils/ApiResponse.js';
 
 export const createCompany = async (req, res) => {
   try {
-    const { name, billingModel, adminEmail, adminFullName, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled } = req.body;
+    const { name, billingModel, adminEmail, adminFullName, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled, forceHalt, tenant, planId } = req.body;
     const result = await companyService.createCompany(
-      { name, billingModel, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled },
+      { name, billingModel, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled, forceHalt },
       adminEmail,
       adminFullName,
+      tenant,
+      planId,
       req.user.userId
     );
     return success(res, result, 'Company and initial admin user created successfully', 201);
+  } catch (err) {
+    return apiError(res, err.statusCode || 500, err.message);
+  }
+};
+
+export const updateTenant = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantData = req.body;
+    const result = await companyService.updateTenant(id, tenantData);
+    return success(res, result, 'Tenant info updated successfully', 200);
   } catch (err) {
     return apiError(res, err.statusCode || 500, err.message);
   }

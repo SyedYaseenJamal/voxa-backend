@@ -1,6 +1,6 @@
 import { body, param, validationResult } from 'express-validator';
 import { error as apiError } from '../../utils/ApiResponse.js';
-import Permission from '../permissions/permission.model.js';
+import { validatePermissions } from '../../lib/getPermissions.js';
 
 export const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
@@ -10,12 +10,10 @@ export const validateRequest = (req, res, next) => {
   next();
 };
 
+// Uses the shared DB-driven validator — no hardcoded permission list needed.
 const validatePermissionsDb = async (permissions) => {
   if (!Array.isArray(permissions)) return true;
-  const validPermissions = await Permission.find({ name: { $in: permissions } });
-  if (validPermissions.length !== permissions.length) {
-    throw new Error('One or more invalid permissions included. Use format: module:action (e.g. billing:read)');
-  }
+  await validatePermissions(permissions); // throws if any are invalid
   return true;
 };
 

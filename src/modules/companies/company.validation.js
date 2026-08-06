@@ -17,6 +17,15 @@ export const validateCreateCompany = [
   body('maxConcurrentCalls').optional().isInt({ min: 1 }),
   body('aiReceptionistEnabled').optional().isBoolean(),
   body('bulkAiCallingEnabled').optional().isBoolean(),
+  body('forceHalt').optional().isBoolean(),
+  body('planId').isMongoId().withMessage('Valid plan ID is required'),
+  body('tenant').isObject().withMessage('Tenant info is required'),
+  body('tenant.tenant_id').isString().notEmpty().withMessage('Tenant ID is required'),
+  body('tenant.region').optional().isString(),
+  body('tenant.province').optional().isString(),
+  body('tenant.address').optional().isString(),
+  body('tenant.contact_name').isString().notEmpty().withMessage('Tenant contact name is required'),
+  body('tenant.contact_email').isEmail().withMessage('Valid tenant contact email is required'),
   validateRequest
 ];
 
@@ -37,5 +46,15 @@ export const validateUpdateCompanyStatus = [
 
 export const validateCompanyIdParam = [
   param('id').isMongoId().withMessage('Invalid company ID'),
+  validateRequest
+];
+export const validateUpdateTenant = [
+  param('id').isMongoId().withMessage('Invalid company ID'),
+  body('tenant_id').isString().notEmpty().withMessage('Tenant ID is required'),
+  body('region').optional().isString(),
+  body('province').optional().isString(),
+  body('address').optional().isString(),
+  body('contact_name').isString().notEmpty().withMessage('Tenant contact name is required'),
+  body('contact_email').isEmail().withMessage('Valid tenant contact email is required'),
   validateRequest
 ];
