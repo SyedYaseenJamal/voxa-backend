@@ -39,9 +39,15 @@ app.use('/api/v1/admin-users', adminUserRoutes);
 app.use('/api/v1/company-users', companyUserRoutes);
 
 // Swagger docs (available in all environments — restrict in prod if needed)
+const CSS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui.min.css';
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'Voxa API Docs',
   customCss: '.swagger-ui .topbar { background-color: #1a1a2e; } .swagger-ui .topbar-wrapper img { display: none; }',
+  customCssUrl: CSS_URL,
+  customJs: [
+    'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui-bundle.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui-standalone-preset.js'
+  ]
 }));
 app.get('/api/docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
