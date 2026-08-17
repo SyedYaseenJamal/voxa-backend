@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const CompanySchema = new mongoose.Schema({
   name:                   { type: String, required: true },
+  businessType:           { type: String, enum: ['ecommerce', 'hospital', 'restaurant', 'other'], default: 'other' },
   status:                 { type: String, enum: ['active', 'suspended', 'pending'], default: 'active' },
   billingModel:           { type: String, enum: ['prepaid', 'postpaid'], required: true },
   createdBy:              { type: mongoose.Schema.Types.ObjectId, ref: 'User' },  // super_admin who created it

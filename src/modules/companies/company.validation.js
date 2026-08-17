@@ -11,6 +11,7 @@ export const validateRequest = (req, res, next) => {
 
 export const validateCreateCompany = [
   body('name').isString().notEmpty().withMessage('Company name is required'),
+  body('businessType').optional().isIn(['ecommerce', 'hospital', 'restaurant', 'other']).withMessage('businessType must be one of ecommerce, hospital, restaurant, other'),
   body('billingModel').isIn(['prepaid', 'postpaid']).withMessage('billingModel must be prepaid or postpaid'),
   body('adminEmail').isEmail().withMessage('Valid admin email is required for the initial company admin'),
   body('adminFullName').isString().notEmpty().withMessage('Admin full name is required'),
@@ -32,6 +33,7 @@ export const validateCreateCompany = [
 export const validateUpdateCompany = [
   param('id').isMongoId().withMessage('Invalid company ID'),
   body('name').optional().isString().notEmpty(),
+  body('businessType').optional().isIn(['ecommerce', 'hospital', 'restaurant', 'other']),
   body('email').optional().isEmail(),
   body('phone').optional().isString(),
   body('address').optional().isString(),

@@ -36,6 +36,7 @@ export const login = async (req, res) => {
         fullName: user.fullName,
         portal: user.portal,
         companyId: user.companyId,
+        businessType: user.businessType,
         roleId: user.roleId,
         permissions: user.roleId ? user.roleId.permissions : []
       },

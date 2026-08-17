@@ -115,7 +115,9 @@ Table companies {
   _id                     varchar [pk, note: 'ObjectId']
   name                    varchar [not null]
   status                  varchar [not null, note: 'active | suspended | pending']
-  billing_model           varchar [not null, note: 'prepaid | postpaid']
+  billing_model           varchar [not null, note: "'prepaid' or 'postpaid'"]
+  business_type           varchar [note: "'ecommerce', 'hospital', 'restaurant', or 'other'"]
+  admin_user_id           varchar [ref: - user._id]
   created_by              varchar
   ai_receptionist_enabled boolean [default: false]
   bulk_ai_calling_enabled boolean [default: false]
@@ -464,4 +466,20 @@ Ref: recordings.agent_id                  > agents._id
 Ref: invoices.company_id                  > companies._id
 Ref: audit_logs.company_id                > companies._id
 Ref: roles.created_by > super_admins._id
-Ref: lead_lists.integration_id > platform_integrations._id
+Ref: lead_lists.integration_id > platform_integrations._id 
+ / /    % % %  O R D E R S   ( E c o m m e r c e   f e a t u r e )    % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % 
+ T a b l e   o r d e r   {  
+     _ i d                                   v a r c h a r   [ p k ,   n o t e :   ' O b j e c t I d ' ]  
+     c o m p a n y _ i d                     v a r c h a r   [ n o t   n u l l ,   r e f :   >   c o m p a n y . _ i d ]  
+     c u s t o m e r _ d e t a i l s         j s o n         [ n o t e :   ' {   n a m e ,   e m a i l ,   p h o n e   } ' ]  
+     s h i p p i n g _ d e t a i l s         j s o n         [ n o t e :   ' {   a d d r e s s ,   c i t y ,   s t a t e ,   z i p ,   c o u n t r y ,   m e t h o d   } ' ]  
+     s h i p p i n g _ d a t e               t i m e s t a m p  
+     d e l i v e r y _ d a t e               t i m e s t a m p  
+     i t e m s                               j s o n         [ n o t e :   ' [ {   p r o d u c t N a m e ,   s k u ,   q u a n t i t y ,   u n i t P r i c e   } ] ' ]  
+     p r i c i n g                           j s o n         [ n o t e :   ' {   s u b t o t a l ,   t a x ,   s h i p p i n g C o s t ,   t o t a l A m o u n t   } ' ]  
+     s t a t u s                             v a r c h a r   [ d e f a u l t :   ' p e n d i n g ' ,   n o t e :   ' p e n d i n g ,   p r o c e s s i n g ,   s h i p p e d ,   d e l i v e r e d ,   c a n c e l l e d ' ]  
+     p a y m e n t _ s t a t u s             v a r c h a r   [ d e f a u l t :   ' p e n d i n g ' ,   n o t e :   ' p e n d i n g ,   p a i d ,   f a i l e d ,   r e f u n d e d ' ]  
+     c r e a t e d _ a t                     t i m e s t a m p   [ n o t   n u l l ]  
+     u p d a t e d _ a t                     t i m e s t a m p   [ n o t   n u l l ]  
+ }  
+ 

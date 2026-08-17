@@ -3,6 +3,7 @@ import { hashPassword, comparePassword } from '../../utils/bcrypt.js';
 import { generateAccessToken, generateRefreshToken } from '../../utils/jwt.js';
 import AppError from '../../utils/AppError.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { sendMail } from '../../utils/email.js';
 
 export const signupUser = async (email, fullName, password, portal) => {
@@ -30,10 +31,17 @@ export const loginUser = async (email, password, portal) => {
 
   const permissions = user.roleId ? user.roleId.permissions : [];
 
+  let businessType = 'other';
+  if (user.companyId) {
+    const company = await mongoose.model('Company').findById(user.companyId);
+    if (company) businessType = company.businessType;
+  }
+
   const payload = {
     userId: user._id,
     portal: user.portal,
     companyId: user.companyId,
+    businessType,
     roleId: user.roleId ? user.roleId._id : null,
     permissions
   };
@@ -44,7 +52,11 @@ export const loginUser = async (email, password, portal) => {
   user.lastLoginAt = new Date();
   await user.save();
 
-  return { user, accessToken, refreshToken };
+  // Attach businessType to the returned user object
+  const userToReturn = user.toObject();
+  userToReturn.businessType = businessType;
+
+  return { user: userToReturn, accessToken, refreshToken };
 };
 
 export const refreshAuthToken = async (token) => {
@@ -55,10 +67,17 @@ export const refreshAuthToken = async (token) => {
 
   const permissions = user.roleId ? user.roleId.permissions : [];
 
+  let businessType = 'other';
+  if (user.companyId) {
+    const company = await mongoose.model('Company').findById(user.companyId);
+    if (company) businessType = company.businessType;
+  }
+
   const payload = {
     userId: user._id,
     portal: user.portal,
     companyId: user.companyId,
+    businessType,
     roleId: user.roleId ? user.roleId._id : null,
     permissions
   };

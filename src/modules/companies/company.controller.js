@@ -3,9 +3,9 @@ import { success, error as apiError } from '../../utils/ApiResponse.js';
 
 export const createCompany = async (req, res) => {
   try {
-    const { name, billingModel, adminEmail, adminFullName, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled, forceHalt, tenant, planId } = req.body;
+    const { name, businessType, billingModel, adminEmail, adminFullName, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled, forceHalt, tenant, planId } = req.body;
     const result = await companyService.createCompany(
-      { name, billingModel, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled, forceHalt },
+      { name, businessType, billingModel, maxConcurrentCalls, aiReceptionistEnabled, bulkAiCallingEnabled, forceHalt },
       adminEmail,
       adminFullName,
       tenant,

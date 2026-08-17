@@ -1,0 +1,35 @@
+import { Router } from 'express';
+import { protect } from '../../middlewares/authenticate.js';
+import {
+  getConfig,
+  saveConfig,
+  deleteConfig,
+  getMetaForms,
+  createMetaForm,
+  getMetaLeads,
+  getLeadsByFormId,
+  verifyWebhook,
+  receiveWebhook
+} from './integration.controller.js';
+
+const router = Router();
+
+// ─── PUBLIC WEBHOOK ROUTES (Meta subscription & capture) ───────────────
+// Both standard global webhook and company-specific webhook are supported.
+router.get('/webhook/meta', verifyWebhook);
+router.get('/webhook/meta/:companyId', verifyWebhook);
+
+router.post('/webhook/meta', receiveWebhook);
+router.post('/webhook/meta/:companyId', receiveWebhook);
+
+// ─── PROTECTED ROUTES (Requires authentication) ────────────────────────
+router.get('/config/:platformType', protect, getConfig);
+router.post('/config/:platformType', protect, saveConfig);
+router.delete('/config/:platformType', protect, deleteConfig);
+
+router.get('/meta/forms', protect, getMetaForms);
+router.post('/meta/forms', protect, createMetaForm);
+router.get('/meta/leads', protect, getMetaLeads);
+router.get('/meta/forms/:formId/leads', protect, getLeadsByFormId);
+
+export default router;

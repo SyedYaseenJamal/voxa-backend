@@ -18,6 +18,11 @@ import companyRoutes from './modules/companies/company.routes.js';
 import adminUserRoutes from './modules/admin-users/adminUser.routes.js';
 import companyUserRoutes from './modules/company-users/companyUser.routes.js';
 import billingRoutes from './modules/billing/billing.routes.js';
+import dialerRoutes from './modules/dialer/dialer.routes.js';
+import integrationRoutes from './modules/integrations/integration.routes.js';
+import leadsRoutes from './modules/leads/leads.routes.js';
+import ivrCampaignRoutes from './modules/ivr-campaigns/ivrCampaign.routes.js';
+import orderRoutes from './modules/orders/order.routes.js';
 
 // Connect to MongoDB
 await connectDB();
@@ -39,6 +44,12 @@ app.use('/api/v1/companies', companyRoutes);
 app.use('/api/v1/admin-users', adminUserRoutes);
 app.use('/api/v1/company-users', companyUserRoutes);
 app.use('/api/v1/billing', billingRoutes);
+app.use('/api/v1/dialer', dialerRoutes);
+app.use('/api/v1/integrations', integrationRoutes);
+app.use('/api/v1/leads', leadsRoutes);
+app.use('/api/v1/ivr-campaigns', ivrCampaignRoutes);
+app.use('/api/v1/orders', orderRoutes);
+
 
 // Swagger docs (available in all environments — restrict in prod if needed)
 const CSS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui.min.css';
