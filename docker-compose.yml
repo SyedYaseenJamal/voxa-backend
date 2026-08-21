@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────
+#  Voxa Backend — Docker Compose
+# ─────────────────────────────────────────────
+services:
+  voxa-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voxa-backend
+    restart: unless-stopped
+
+    # Load env vars from .env file (never commit secrets to the image)
+    env_file:
+      - .env
+
+    ports:
+      - "${PORT:-5000}:5000"   # host_port:container_port
+
+    networks:
+      - voxa-network
+
+    # Optional: if you ever run a local MongoDB container, uncomment below
+    # depends_on:
+    #   - mongo
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Optional local MongoDB (comment out if using Atlas) ──────────────────
+  # mongo:
+  #   image: mongo:7
+  #   container_name: voxa-mongo
+  #   restart: unless-stopped
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: root
+  #     MONGO_INITDB_ROOT_PASSWORD: secret
+  #   volumes:
+  #     - mongo-data:/data/db
+  #   networks:
+  #     - voxa-network
+
+networks:
+  voxa-network:
+    driver: bridge
+
+# volumes:
+#   mongo-data:

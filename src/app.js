@@ -36,6 +36,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// ── Health check (used by Docker HEALTHCHECK & load balancers) ───────────────
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
 // Mount routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/roles', roleRoutes);
