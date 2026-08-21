@@ -163,8 +163,8 @@ export async function getCampaigns() {
     axios.get(`${BASE_URL}/campaigns`, {
       headers: { Cookie: sessionCookie },
       maxRedirects: 5,
-      validateStatus: () => true,
-      timeout: 15000,
+      validateStatus: () => true
+      // timeout: 15000,
     })
   );
 
@@ -180,11 +180,11 @@ export async function getCampaigns() {
     const cells = $(row).find('td');
     if (cells.length < 2) return;
     campaigns.push({
-      id:       $(cells[0]).text().trim(),
-      name:     $(cells[1]).text().trim(),
-      user:     $(cells[2])?.text().trim() || '',
-      type:     $(cells[3])?.text().trim() || '',
-      status:   $(cells[4])?.text().trim() || '',
+      id: $(cells[0]).text().trim(),
+      name: $(cells[1]).text().trim(),
+      user: $(cells[2])?.text().trim() || '',
+      type: $(cells[3])?.text().trim() || '',
+      status: $(cells[4])?.text().trim() || '',
       schedule: $(cells[5])?.text().trim() || '',
     });
   });
@@ -239,7 +239,7 @@ export async function createCampaign(payload, csvBuffer, csvFilename) {
   const response = await withSessionRetry(doRequest);
   const location = response.headers['location'] || '';
   let obdCampaignId = null;
-  
+
   // OBD CMS redirects to /campaigns/view/{id} on successful creation
   const match = location.match(/\/campaigns\/view\/(\d+)/i);
   if (match) {
@@ -277,7 +277,7 @@ export async function startCampaign(campaignId) {
   console.log(`[OBD CMS] startCampaign(${campaignId}) status:`, response.status);
   const raw = typeof response.data === 'string' ? response.data : '';
   const success = response.status < 400 && !isLoginPage(raw);
-  
+
   return success;
 }
 
@@ -303,10 +303,10 @@ export async function getCampaignDetail(campaignId) {
   }
 
   const $ = cheerio.load(html);
-  
+
   // Extract Campaign name (h3 tag)
   const campaignName = $('h3').first().text().trim();
-  
+
   // Stats (card h4 values)
   const statValues = [];
   $('.col-md-3 .card-body h4').each((i, el) => {
@@ -334,7 +334,7 @@ export async function getCampaignDetail(campaignId) {
       });
     }
   });
-  
+
   return {
     campaignName,
     stats,
