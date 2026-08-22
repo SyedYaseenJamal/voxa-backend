@@ -342,5 +342,98 @@ export async function getCampaignDetail(campaignId) {
   };
 }
 
-const obdCmsService = { login, getCampaigns, createCampaign, startCampaign, getCampaignDetail };
+// ── uploadAudio ──────────────────────────────────────────────────────────────
+
+/**
+ * Upload an audio file to OBD CMS.
+ * Flow:
+ *   1. GET /audio/upload → extract CSRF _token from HTML
+ *   2. POST /audio/upload as multipart/form-data with _token + audio file
+ *
+ * @param {Buffer} fileBuffer   - raw file bytes
+ * @param {string} fileName     - original file name (e.g. "my_audio.wav")
+ * @returns {Promise<object>}   - raw response data from OBD CMS
+ */
+export async function uploadAudio(fileBuffer, fileName) {
+  // ── POST multipart form to /audio/store ──────────────────────────────────
+  const doUpload = () => {
+    const form = new FormData();
+    form.append('audio', fileBuffer, {
+      filename: fileName,
+      contentType: 'audio/wav',
+    });
+
+    return axios.post(`${BASE_URL}/audio/store`, form, {
+      headers: {
+        ...form.getHeaders(),
+        Cookie: sessionCookie,
+      },
+      maxRedirects: 5,
+      validateStatus: () => true,
+      timeout: 30000,
+    });
+  };
+
+  const response = await withSessionRetry(doUpload);
+  return response.data;
+}
+
+// ── listAudio ─────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch the list of audio files from OBD CMS.
+ * Tries JSON first; falls back to parsing the HTML <table>.
+ *
+ * @returns {Promise<Array<{id: string, original_name: string, stored_file: string}>>}
+ */
+export async function listAudio() {
+  const response = await withSessionRetry(() =>
+    axios.get(`${BASE_URL}/audio`, {
+      headers: {
+        Cookie: sessionCookie,
+        Accept: 'application/json',
+      },
+      maxRedirects: 5,
+      validateStatus: () => true,
+      timeout: 15000,
+    })
+  );
+
+  const contentType = response.headers['content-type'] || '';
+
+  // ── JSON response ────────────────────────────────────────────────────────
+  if (contentType.includes('application/json') || typeof response.data === 'object') {
+    const raw = Array.isArray(response.data)
+      ? response.data
+      : Array.isArray(response.data?.data)
+        ? response.data.data
+        : [];
+    return raw.map(item => ({
+      id:            String(item.id ?? ''),
+      original_name: String(item.original_name ?? item.name ?? ''),
+      stored_file:   String(item.stored_file ?? item.file ?? ''),
+    }));
+  }
+
+  // ── HTML fallback: parse <table> ─────────────────────────────────────────
+  const html = typeof response.data === 'string' ? response.data : '';
+  if (!html) throw new Error('listAudio: Empty response from OBD CMS /audio');
+
+  const $ = cheerio.load(html);
+  const audioList = [];
+
+  $('table tbody tr').each((_, row) => {
+    const cells = $(row).find('td');
+    if (cells.length < 2) return;
+    audioList.push({
+      id:            $(cells[0]).text().trim(),
+      original_name: $(cells[1]).text().trim(),
+      stored_file:   $(cells[2])?.text().trim() || $(cells[1]).text().trim(),
+    });
+  });
+
+  return audioList;
+}
+
+const obdCmsService = { login, getCampaigns, createCampaign, startCampaign, getCampaignDetail, uploadAudio, listAudio };
 export default obdCmsService;

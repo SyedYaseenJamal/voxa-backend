@@ -1,6 +1,6 @@
 import multer from 'multer';
 import { IvrCampaign } from './ivrCampaign.model.js';
-import { createCampaign as obdCreateCampaign, getCampaigns as obdGetCampaigns, startCampaign as obdStartCampaign, getCampaignDetail as obdGetCampaignDetail } from './obdCms.service.js';
+import { createCampaign as obdCreateCampaign, getCampaigns as obdGetCampaigns, startCampaign as obdStartCampaign, getCampaignDetail as obdGetCampaignDetail, uploadAudio as obdUploadAudio, listAudio as obdListAudio } from './obdCms.service.js';
 
 // ── Multer: keep CSV in memory as a Buffer ────────────────────────────────────
 const storage = multer.memoryStorage();
@@ -202,5 +202,44 @@ export const startObdCampaignHandler = async (req, res) => {
   } catch (error) {
     console.error('Error starting OBD campaign:', error);
     res.status(500).json({ success: false, message: 'Failed to start OBD campaign', error: error.message });
+  }
+};
+
+// ── Audio: multer for in-memory audio uploads ─────────────────────────────────
+export const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/x-wav'];
+    if (!allowed.includes(file.mimetype) && !file.originalname.match(/\.(wav|mp3|ogg|m4a)$/i)) {
+      return cb(new Error('Only audio files (wav, mp3, ogg) are allowed.'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB max
+});
+
+// ── Upload Audio to OBD CMS ───────────────────────────────────────────────────
+export const uploadAudioHandler = async (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ success: false, message: 'Audio file is required.' });
+    }
+    const { originalname, buffer } = req.file;
+    const result = await obdUploadAudio(buffer, originalname);
+    res.status(200).json({ success: true, message: 'Audio uploaded to OBD CMS successfully.', data: result });
+  } catch (error) {
+    console.error('[Audio Upload] Error:', error.message);
+    res.status(500).json({ success: false, message: `Failed to upload audio: ${error.message}` });
+  }
+};
+
+// ── List Audio from OBD CMS ───────────────────────────────────────────────────
+export const listAudioHandler = async (_req, res) => {
+  try {
+    const audioList = await obdListAudio();
+    res.status(200).json({ success: true, data: audioList });
+  } catch (error) {
+    console.error('[Audio List] Error:', error.message);
+    res.status(500).json({ success: false, message: `Failed to fetch audio list: ${error.message}` });
   }
 };

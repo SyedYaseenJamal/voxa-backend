@@ -80,16 +80,16 @@ export const saveConfig = async (req, res, next) => {
 
       // If credentials already exist and we received masked values, preserve original values
       const existing = await PlatformIntegration.findOne({ companyId, platformType });
-      
+
       credentials.metaAppId = metaAppId;
-      credentials.metaAppSecret = (metaAppSecret && !metaAppSecret.includes('••')) 
-        ? metaAppSecret 
+      credentials.metaAppSecret = (metaAppSecret && !metaAppSecret.includes('••'))
+        ? metaAppSecret
         : existing?.credentials?.metaAppSecret;
-      
+
       credentials.metaPageAccessToken = (metaPageAccessToken && !metaPageAccessToken.includes('••'))
         ? metaPageAccessToken
         : existing?.credentials?.metaPageAccessToken;
-        
+
       credentials.metaPageId = metaPageId;
       credentials.metaAdAccountId = metaAdAccountId;
     }
@@ -217,7 +217,7 @@ export const createMetaForm = async (req, res, next) => {
 
     const BUILTIN_TYPES = ['FULL_NAME', 'EMAIL', 'PHONE', 'DATE_TIME', 'STREET_ADDRESS', 'CITY', 'STATE', 'COUNTRY', 'ZIP', 'POST_CODE', 'GENDER', 'MARITAL_STATUS', 'RELATIONSHIP_STATUS', 'MILITARY_STATUS', 'WORK_PHONE_NUMBER', 'WORK_EMAIL'];
     const parsedQuestions = Array.isArray(questions) ? questions : JSON.parse(questions);
-    
+
     const sanitizedQuestions = parsedQuestions.map(q => {
       if (BUILTIN_TYPES.includes(q.type)) return { type: q.type };
       return { type: q.type, label: q.label, key: q.key };
@@ -299,7 +299,7 @@ export const getLeadsByFormId = async (req, res, next) => {
         params: {
           access_token: token,
           fields: 'id,created_time,field_data',
-          limit: 100
+          limit: 500
         }
       }
     );
