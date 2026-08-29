@@ -25,7 +25,8 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.9.9",
     "swagger-jsdoc": "^6.3.0",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
