@@ -23,6 +23,7 @@ import integrationRoutes from './modules/integrations/integration.routes.js';
 import leadsRoutes from './modules/leads/leads.routes.js';
 import ivrCampaignRoutes from './modules/ivr-campaigns/ivrCampaign.routes.js';
 import orderRoutes from './modules/orders/order.routes.js';
+import didRoutes from './modules/dids/did.routes.js';
 
 // Connect to MongoDB
 await connectDB();
@@ -54,6 +55,7 @@ app.use('/api/v1/integrations', integrationRoutes);
 app.use('/api/v1/leads', leadsRoutes);
 app.use('/api/v1/ivr-campaigns', ivrCampaignRoutes);
 app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/dids', didRoutes);
 
 
 // Swagger docs (available in all environments — restrict in prod if needed)

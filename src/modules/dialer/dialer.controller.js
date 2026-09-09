@@ -1086,7 +1086,11 @@ export const postCallPstn = [
       campaign_id: cleanTag(req.body?.campaignId,  'campaignId'),
       destination: e164
     });
-    const pstnCallerId = cleanCallerId(req.body?.pstnCallerId) || CONFIG.PSTN_CALLER_ID;
+    // caller_id (from DID dropdown) takes precedence, then pstnCallerId, then global default
+    const pstnCallerId =
+      cleanCallerId(req.body?.caller_id) ||
+      cleanCallerId(req.body?.pstnCallerId) ||
+      CONFIG.PSTN_CALLER_ID;
     const agentExtension = requireEndpoint(req.body?.agentExtension || CONFIG.AGENT_EXTENSION, 'agentExtension');
     const flow = await resolveFlow(
       agentExtension,
