@@ -25,6 +25,7 @@ import ivrCampaignRoutes from './modules/ivr-campaigns/ivrCampaign.routes.js';
 import orderRoutes from './modules/orders/order.routes.js';
 import didRoutes from './modules/dids/did.routes.js';
 import aiAgentRoutes from './modules/ai-agents/aiAgent.routes.js';
+import telephonyRoutes from './modules/telephony/telephony.routes.js';
 
 // Connect to MongoDB
 await connectDB();
@@ -58,6 +59,7 @@ app.use('/api/v1/ivr-campaigns', ivrCampaignRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/dids', didRoutes);
 app.use('/api/v1/ai-agents', aiAgentRoutes);
+app.use('/api/v1/telephony', telephonyRoutes);
 
 
 // Swagger docs (available in all environments — restrict in prod if needed)
