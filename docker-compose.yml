@@ -16,6 +16,9 @@ services:
     ports:
       - "${PORT:-5000}:5000"   # host_port:container_port
 
+    volumes:
+      - /var/data:/var/data:ro
+
     networks:
       - voxa-network
 
