@@ -12,99 +12,103 @@ const RECORDINGS_DIRS = [
 ].filter(Boolean);
 
 /**
- * Searches directories for a matching recording file by unique ID, filename, or phone number.
- * e.g., var/data/03022011625_1788800465.17.wav
+ * Searches /var/data (and fallback dirs) for a recording.
+ *
+ * Primary filename format: {phone}_{uniqueid}.wav
+ * Example:                 03022011625_1788800465.17.wav
+ *
+ * Fallback: any audio file whose name contains the uniqueid string.
  */
 export function findRecordingFile(uniqueid, phone = null, rawFilename = null) {
   if (!uniqueid && !rawFilename) return null;
 
   const targetUniqueId = String(uniqueid || '').trim();
+  // Keep only digits for the phone part (matches Asterisk CDR format)
   const cleanPhone = phone ? String(phone).replace(/\D/g, '') : '';
 
-  console.log('\n[RecordingFinder] ─────────────────────────────────────────');
-  console.log(`[RecordingFinder] Searching for recording`);
-  console.log(`[RecordingFinder]   uniqueid    : "${targetUniqueId}"`);
-  console.log(`[RecordingFinder]   phone       : "${cleanPhone}" (raw: "${phone}")`);
-  console.log(`[RecordingFinder]   rawFilename : "${rawFilename}"`);
-  console.log(`[RecordingFinder]   Search dirs : ${JSON.stringify(RECORDINGS_DIRS)}`);
-  console.log('[RecordingFinder] ─────────────────────────────────────────');
+  // Build the primary candidate name: phone_uniqueid.wav
+  const primaryCandidate = cleanPhone && targetUniqueId
+    ? `${cleanPhone}_${targetUniqueId}.wav`
+    : null;
 
-  // 1. Direct path check if rawFilename provided
+  console.log('\n[RecordingFinder] ═══════════════════════════════════════════');
+  console.log(`[RecordingFinder] Looking for recording`);
+  console.log(`[RecordingFinder]   uniqueid         : "${targetUniqueId}"`);
+  console.log(`[RecordingFinder]   phone (cleaned)  : "${cleanPhone}"`);
+  console.log(`[RecordingFinder]   primary target   : "${primaryCandidate}"`);
+  console.log(`[RecordingFinder]   search dirs      : ${JSON.stringify(RECORDINGS_DIRS)}`);
+  console.log('[RecordingFinder] ═══════════════════════════════════════════');
+
+  // ── Step 0: rawFilename shortcut ──────────────────────────────────────────
   if (rawFilename) {
-    console.log(`[RecordingFinder] Step 1: Checking raw filename directly: "${rawFilename}"`);
+    console.log(`[RecordingFinder] Step 0: Checking rawFilename "${rawFilename}" directly`);
     if (fs.existsSync(rawFilename)) {
-      const resolved = path.resolve(rawFilename);
-      console.log(`[RecordingFinder] ✅ FOUND (direct path): ${resolved}`);
-      return resolved;
+      console.log(`[RecordingFinder] ✅ FOUND at raw path: ${path.resolve(rawFilename)}`);
+      return path.resolve(rawFilename);
     }
-    console.log(`[RecordingFinder]   Not found at direct path, trying in search dirs…`);
-    const baseName = path.basename(rawFilename);
+    // Try rawFilename basename inside search dirs
+    const base = path.basename(rawFilename);
     for (const dir of RECORDINGS_DIRS) {
-      const fullPath = path.join(dir, baseName);
-      console.log(`[RecordingFinder]   Checking: ${fullPath}`);
-      if (fs.existsSync(fullPath)) {
-        console.log(`[RecordingFinder] ✅ FOUND (raw filename in dir): ${fullPath}`);
-        return fullPath;
+      const fp = path.join(dir, base);
+      console.log(`[RecordingFinder]   Trying ${fp}`);
+      if (fs.existsSync(fp)) {
+        console.log(`[RecordingFinder] ✅ FOUND (rawFilename in dir): ${fp}`);
+        return fp;
       }
     }
-    console.log(`[RecordingFinder]   Raw filename not found in any dir.`);
+    console.log('[RecordingFinder]   rawFilename not found anywhere.');
   }
 
-  // 2. Search candidate directories
-  console.log(`[RecordingFinder] Step 2: Searching directories by uniqueid/phone pattern…`);
+  // ── Step 1: Search each dir for phone_uniqueid.wav (primary) then fallback ─
   for (const dir of RECORDINGS_DIRS) {
     const dirExists = fs.existsSync(dir);
-    console.log(`[RecordingFinder]   Dir: "${dir}" — exists: ${dirExists}`);
+    console.log(`\n[RecordingFinder] Dir: "${dir}" → exists: ${dirExists}`);
     if (!dirExists) continue;
 
+    let files;
     try {
-      const files = fs.readdirSync(dir);
-      console.log(`[RecordingFinder]   Files in dir (${files.length} total): ${files.slice(0, 20).join(', ')}${files.length > 20 ? ' …(truncated)' : ''}`);
-
-      // Exact candidate: phone_uniqueid.wav
-      if (cleanPhone && targetUniqueId) {
-        const exact1 = `${cleanPhone}_${targetUniqueId}.wav`;
-        const found1 = files.includes(exact1);
-        console.log(`[RecordingFinder]   Trying "${exact1}" → ${found1 ? '✅ FOUND' : '❌ not found'}`);
-        if (found1) {
-          const result = path.join(dir, exact1);
-          console.log(`[RecordingFinder] ✅ FOUND (phone_uniqueid.wav): ${result}`);
-          return result;
-        }
-      }
-
-      // Exact candidate: uniqueid.wav
-      if (targetUniqueId) {
-        const exact2 = `${targetUniqueId}.wav`;
-        const found2 = files.includes(exact2);
-        console.log(`[RecordingFinder]   Trying "${exact2}" → ${found2 ? '✅ FOUND' : '❌ not found'}`);
-        if (found2) {
-          const result = path.join(dir, exact2);
-          console.log(`[RecordingFinder] ✅ FOUND (uniqueid.wav): ${result}`);
-          return result;
-        }
-      }
-
-      // Partial match: any file containing the uniqueid
-      if (targetUniqueId) {
-        const match = files.find(f =>
-          f.includes(targetUniqueId) &&
-          (f.endsWith('.wav') || f.endsWith('.mp3') || f.endsWith('.gsm'))
-        );
-        if (match) {
-          const result = path.join(dir, match);
-          console.log(`[RecordingFinder] ✅ FOUND (partial match "${match}"): ${result}`);
-          return result;
-        }
-        console.log(`[RecordingFinder]   No file containing "${targetUniqueId}" in this dir`);
-      }
+      files = fs.readdirSync(dir);
     } catch (err) {
-      console.warn(`[RecordingFinder] ⚠️  Error reading dir "${dir}":`, err.message);
+      console.warn(`[RecordingFinder]   ⚠️  Cannot read dir: ${err.message}`);
+      continue;
+    }
+
+    const audioFiles = files.filter(f =>
+      f.endsWith('.wav') || f.endsWith('.mp3') || f.endsWith('.gsm')
+    );
+    console.log(`[RecordingFinder]   Total files: ${files.length}  |  Audio files: ${audioFiles.length}`);
+    if (audioFiles.length > 0) {
+      console.log(`[RecordingFinder]   Audio files: ${audioFiles.slice(0, 30).join(', ')}${audioFiles.length > 30 ? ' …' : ''}`);
+    }
+
+    // 1a. Primary: phone_uniqueid.wav  (e.g. 03022011625_1788800465.17.wav)
+    if (primaryCandidate) {
+      const found = files.includes(primaryCandidate);
+      console.log(`[RecordingFinder]   [PRIMARY] "${primaryCandidate}" → ${found ? '✅ MATCH' : '❌ not found'}`);
+      if (found) {
+        const result = path.join(dir, primaryCandidate);
+        console.log(`[RecordingFinder] ✅ FOUND: ${result}`);
+        console.log('[RecordingFinder] ═══════════════════════════════════════════\n');
+        return result;
+      }
+    }
+
+    // 1b. Fallback: any audio file whose name contains the uniqueid
+    if (targetUniqueId) {
+      const partial = audioFiles.find(f => f.includes(targetUniqueId));
+      if (partial) {
+        const result = path.join(dir, partial);
+        console.log(`[RecordingFinder]   [FALLBACK] Partial match on uniqueid → "${partial}"`);
+        console.log(`[RecordingFinder] ✅ FOUND: ${result}`);
+        console.log('[RecordingFinder] ═══════════════════════════════════════════\n');
+        return result;
+      }
+      console.log(`[RecordingFinder]   [FALLBACK] No audio file contains "${targetUniqueId}"`);
     }
   }
 
-  console.log(`[RecordingFinder] ❌ NOT FOUND — recording not in any search directory`);
-  console.log('[RecordingFinder] ─────────────────────────────────────────\n');
+  console.log('\n[RecordingFinder] ❌ NOT FOUND in any directory');
+  console.log('[RecordingFinder] ═══════════════════════════════════════════\n');
   return null;
 }
 
