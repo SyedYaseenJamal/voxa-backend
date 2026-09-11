@@ -4,6 +4,7 @@ import path from 'path';
 const PIPELINE_URL = (process.env.VOXA_AI_PIPELINE_URL || 'http://165.99.50.70:8000').replace(/\/$/, '');
 const RECORDINGS_DIRS = [
   process.env.RECORDINGS_PATH,
+  '../../../../../data',
   '/var/data',
   'var/data',
   'C:/var/data',
@@ -120,7 +121,7 @@ export async function callPipelineProcess({ callId, script = 'mixed', filePath =
     const fileBuffer = fs.readFileSync(filePath);
     const fileName = path.basename(filePath);
     const mimeType = fileName.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav';
-    
+
     const formData = new FormData();
     const blob = new Blob([fileBuffer], { type: mimeType });
     formData.append('audio', blob, fileName);
