@@ -13,7 +13,7 @@ import { success, error as apiError } from '../../utils/ApiResponse.js';
 
 // ── Pipeline client ───────────────────────────────────────────────────────────
 
-const PIPELINE_URL = process.env.VOXA_AI_PIPELINE_URL ?? 'http://localhost:8000';
+const PIPELINE_URL = process.env.VOXA_AI_PIPELINE_URL ?? 'https://crm-intelligence-voxa.vercel.app';
 const PIPELINE_KEY = process.env.VOXA_AI_PIPELINE_API_KEY ?? '';
 const pipelineAgent = new Agent({ connect: { rejectUnauthorized: false } });
 

@@ -8,7 +8,7 @@ function pipelineFetch(url, options = {}) {
   return fetch(url, { ...options, dispatcher: pipelineAgent });
 }
 
-const PIPELINE_URL = (process.env.VOXA_AI_PIPELINE_URL || 'http://165.99.50.70:8000').replace(/\/$/, '');
+const PIPELINE_URL = (process.env.VOXA_AI_PIPELINE_URL || 'https://crm-intelligence-voxa.vercel.app').replace(/\/$/, '');
 const RECORDINGS_DIRS = Array.from(new Set([
   process.env.RECORDINGS_PATH,
   path.resolve(process.cwd(), 'recordings'),
