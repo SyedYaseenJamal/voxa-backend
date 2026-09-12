@@ -7,6 +7,7 @@
 // Public route   : webhook receiver (no auth, HMAC verified)
 
 import crypto from 'crypto';
+import { Agent } from 'undici';
 import { AgentConfig, AiCall, StructuredOutputSchema } from './aiAgent.model.js';
 import { success, error as apiError } from '../../utils/ApiResponse.js';
 
@@ -14,6 +15,7 @@ import { success, error as apiError } from '../../utils/ApiResponse.js';
 
 const PIPELINE_URL = process.env.VOXA_AI_PIPELINE_URL ?? 'http://localhost:8000';
 const PIPELINE_KEY = process.env.VOXA_AI_PIPELINE_API_KEY ?? '';
+const pipelineAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 async function pipeline(method, path, body = null) {
   const opts = {
@@ -22,6 +24,7 @@ async function pipeline(method, path, body = null) {
       'X-API-Key': PIPELINE_KEY,
       'Content-Type': 'application/json',
     },
+    dispatcher: pipelineAgent,
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${PIPELINE_URL}${path}`, opts);

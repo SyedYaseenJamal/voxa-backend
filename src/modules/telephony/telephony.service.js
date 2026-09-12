@@ -1,5 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import { Agent } from 'undici';
+
+const pipelineAgent = new Agent({ connect: { rejectUnauthorized: false } });
+
+function pipelineFetch(url, options = {}) {
+  return fetch(url, { ...options, dispatcher: pipelineAgent });
+}
 
 const PIPELINE_URL = (process.env.VOXA_AI_PIPELINE_URL || 'http://165.99.50.70:8000').replace(/\/$/, '');
 const RECORDINGS_DIRS = Array.from(new Set([
@@ -138,7 +145,7 @@ export async function callPipelineProcess({ callId, script = 'mixed', filePath =
     formData.append('call_id', String(callId));
     formData.append('script', script);
 
-    const res = await fetch(`${PIPELINE_URL}/calls/process`, {
+    const res = await pipelineFetch(`${PIPELINE_URL}/calls/process`, {
       method: 'POST',
       body: formData,
     });
@@ -152,7 +159,7 @@ export async function callPipelineProcess({ callId, script = 'mixed', filePath =
   }
 
   if (audioUrl) {
-    const res = await fetch(`${PIPELINE_URL}/calls/process-url`, {
+    const res = await pipelineFetch(`${PIPELINE_URL}/calls/process-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -188,7 +195,7 @@ export async function callPipelineTranscribe({ callId, script = 'mixed', filePat
     formData.append('call_id', String(callId));
     formData.append('script', script);
 
-    const res = await fetch(`${PIPELINE_URL}/calls/transcribe`, {
+    const res = await pipelineFetch(`${PIPELINE_URL}/calls/transcribe`, {
       method: 'POST',
       body: formData,
     });
@@ -202,7 +209,7 @@ export async function callPipelineTranscribe({ callId, script = 'mixed', filePat
   }
 
   if (audioUrl) {
-    const res = await fetch(`${PIPELINE_URL}/calls/transcribe-url`, {
+    const res = await pipelineFetch(`${PIPELINE_URL}/calls/transcribe-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -237,7 +244,7 @@ export async function callPipelineSummarize({ callId, filePath = null, audioUrl 
     formData.append('audio', blob, fileName);
     formData.append('call_id', String(callId));
 
-    const res = await fetch(`${PIPELINE_URL}/calls/summarize`, {
+    const res = await pipelineFetch(`${PIPELINE_URL}/calls/summarize`, {
       method: 'POST',
       body: formData,
     });
@@ -251,7 +258,7 @@ export async function callPipelineSummarize({ callId, filePath = null, audioUrl 
   }
 
   if (audioUrl) {
-    const res = await fetch(`${PIPELINE_URL}/calls/summarize-url`, {
+    const res = await pipelineFetch(`${PIPELINE_URL}/calls/summarize-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
