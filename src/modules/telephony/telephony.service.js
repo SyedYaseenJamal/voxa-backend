@@ -2,18 +2,20 @@ import fs from 'fs';
 import path from 'path';
 
 const PIPELINE_URL = (process.env.VOXA_AI_PIPELINE_URL || 'http://165.99.50.70:8000').replace(/\/$/, '');
-const RECORDINGS_DIRS = [
+const RECORDINGS_DIRS = Array.from(new Set([
   process.env.RECORDINGS_PATH,
-  '../../../../../data',
+  path.resolve(process.cwd(), 'recordings'),
+  path.resolve(process.cwd(), 'voxa-backend', 'recordings'),
+  path.resolve(process.cwd(), '..', 'recordings'),
   '/var/data',
   'var/data',
   'C:/var/data',
-  path.join(process.cwd(), 'var', 'data'),
-  path.join(process.cwd(), 'recordings')
-].filter(Boolean);
+  path.resolve(process.cwd(), 'var', 'data'),
+  '../../../../../data'
+].filter(Boolean)));
 
 /**
- * Searches /var/data (and fallback dirs) for a recording.
+ * Searches root recordings directory, /var/data (and fallback dirs) for a recording.
  *
  * Primary filename format: {phone}_{uniqueid}.wav
  * Example:                 03022011625_1788800465.17.wav
@@ -24,19 +26,27 @@ export function findRecordingFile(uniqueid, phone = null, rawFilename = null) {
   if (!uniqueid && !rawFilename) return null;
 
   const targetUniqueId = String(uniqueid || '').trim();
+  const rawPhone = phone ? String(phone).trim() : '';
   // Keep only digits for the phone part (matches Asterisk CDR format)
-  const cleanPhone = phone ? String(phone).replace(/\D/g, '') : '';
+  const cleanPhone = rawPhone ? rawPhone.replace(/\D/g, '') : '';
 
-  // Build the primary candidate name: phone_uniqueid.wav
-  const primaryCandidate = cleanPhone && targetUniqueId
-    ? `${cleanPhone}_${targetUniqueId}.wav`
-    : null;
+  // Build list of primary candidates: phone_uniqueid.wav (e.g. 03022011625_1788800465.17.wav)
+  const primaryCandidates = [];
+  if (cleanPhone && targetUniqueId) {
+    primaryCandidates.push(`${cleanPhone}_${targetUniqueId}.wav`);
+  }
+  if (rawPhone && rawPhone !== cleanPhone && targetUniqueId) {
+    primaryCandidates.push(`${rawPhone}_${targetUniqueId}.wav`);
+  }
+  if (targetUniqueId) {
+    primaryCandidates.push(`${targetUniqueId}.wav`);
+  }
 
   console.log('\n[RecordingFinder] ═══════════════════════════════════════════');
   console.log(`[RecordingFinder] Looking for recording`);
   console.log(`[RecordingFinder]   uniqueid         : "${targetUniqueId}"`);
   console.log(`[RecordingFinder]   phone (cleaned)  : "${cleanPhone}"`);
-  console.log(`[RecordingFinder]   primary target   : "${primaryCandidate}"`);
+  console.log(`[RecordingFinder]   primary targets  : ${JSON.stringify(primaryCandidates)}`);
   console.log(`[RecordingFinder]   search dirs      : ${JSON.stringify(RECORDINGS_DIRS)}`);
   console.log('[RecordingFinder] ═══════════════════════════════════════════');
 
@@ -83,11 +93,11 @@ export function findRecordingFile(uniqueid, phone = null, rawFilename = null) {
     }
 
     // 1a. Primary: phone_uniqueid.wav  (e.g. 03022011625_1788800465.17.wav)
-    if (primaryCandidate) {
-      const found = files.includes(primaryCandidate);
-      console.log(`[RecordingFinder]   [PRIMARY] "${primaryCandidate}" → ${found ? '✅ MATCH' : '❌ not found'}`);
+    for (const candidate of primaryCandidates) {
+      const found = files.includes(candidate);
+      console.log(`[RecordingFinder]   [PRIMARY] "${candidate}" → ${found ? '✅ MATCH' : '❌ not found'}`);
       if (found) {
-        const result = path.join(dir, primaryCandidate);
+        const result = path.join(dir, candidate);
         console.log(`[RecordingFinder] ✅ FOUND: ${result}`);
         console.log('[RecordingFinder] ═══════════════════════════════════════════\n');
         return result;

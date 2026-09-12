@@ -3,6 +3,7 @@
 // Company endpoint: read-only view of their assigned DIDs
 
 import Did from './did.model.js';
+import User from '../auth/auth.model.js';
 import { success, error as apiError } from '../../utils/ApiResponse.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -43,6 +44,11 @@ export const listDids = async (req, res) => {
   try {
     const dids = await Did.find({ is_active: true, released_at: null })
       .populate('company_id', 'name status')
+      .populate({
+        path: 'assigned_user_id',
+        select: 'fullName email roleId',
+        populate: { path: 'roleId', select: 'name' }
+      })
       .sort({ createdAt: -1 });
 
     return success(res, dids, 'DIDs fetched');
@@ -213,9 +219,58 @@ export const listCompanyDids = async (req, res) => {
       status:      'assigned',
       is_active:   true,
       released_at: null,
-    }).sort({ assigned_at: -1 });
+    })
+      .populate({
+        path: 'assigned_user_id',
+        select: 'fullName email roleId',
+        populate: { path: 'roleId', select: 'name' }
+      })
+      .sort({ assigned_at: -1 });
 
     return success(res, dids, 'Company DIDs fetched');
+  } catch (err) {
+    return apiError(res, 500, err.message);
+  }
+};
+
+// ── Company: Assign a specific DID to a user within the company ──────────────
+// PATCH /api/v1/dids/company/mine/:didId/assign-user
+export const assignUserToDid = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) return apiError(res, 403, 'No company context found in token');
+
+    const { didId } = req.params;
+    const { user_id } = req.body;
+
+    const did = await Did.findOne({
+      _id: didId,
+      company_id: companyId,
+      status: 'assigned',
+      is_active: true,
+      released_at: null,
+    });
+
+    if (!did) return apiError(res, 404, 'DID not found or not assigned to your company');
+
+    if (user_id) {
+      // Validate that user exists and belongs to the caller's company (any role allowed)
+      const user = await User.findOne({ _id: user_id, companyId });
+      if (!user) return apiError(res, 404, 'User not found or does not belong to your company');
+      did.assigned_user_id = user._id;
+    } else {
+      did.assigned_user_id = null;
+    }
+
+    await did.save();
+
+    const updated = await Did.findById(did._id).populate({
+      path: 'assigned_user_id',
+      select: 'fullName email roleId',
+      populate: { path: 'roleId', select: 'name' }
+    });
+
+    return success(res, updated, 'DID user assignment updated successfully');
   } catch (err) {
     return apiError(res, 500, err.message);
   }

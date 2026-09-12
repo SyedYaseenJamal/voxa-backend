@@ -18,6 +18,15 @@ export const createCompany = async (req, res) => {
   }
 };
 
+export const getNextTenantId = async (req, res) => {
+  try {
+    const nextTenantId = await companyService.getNextTenantId();
+    return success(res, { nextTenantId }, 'Next tenant ID fetched successfully');
+  } catch (err) {
+    return apiError(res, err.statusCode || 500, err.message);
+  }
+};
+
 export const updateTenant = async (req, res) => {
   try {
     const { id } = req.params;

@@ -15,6 +15,7 @@ import {
   releaseDid,
   listCompanyDids,
   getCompanyDidHistory,
+  assignUserToDid,
 } from './did.controller.js';
 
 const router = Router();
@@ -36,6 +37,14 @@ router.get(
   protect,
   requireCustomerPortal,
   getCompanyDidHistory
+);
+
+// PATCH /api/v1/dids/company/mine/:didId/assign-user — assign specific DID to a user
+router.patch(
+  '/company/mine/:didId/assign-user',
+  protect,
+  requireCustomerPortal,
+  assignUserToDid
 );
 
 // ── Admin routes (require admin portal auth) ──────────────────────────────────

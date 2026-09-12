@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   createCompany,
+  getNextTenantId,
   getCompanies,
   getCompanyById,
   updateCompany,
@@ -29,6 +30,24 @@ const router = express.Router();
 // All routes require the user to be logged in to the Admin Portal
 // and possess the MANAGE_COMPANIES or VIEW_COMPANIES permission accordingly.
 router.use(protect, requireAdminPortal);
+
+/**
+ * @swagger
+ * /companies/next-tenant-id:
+ *   get:
+ *     summary: Get auto-generated next tenant ID (Voxa-tenant-001 format)
+ *     tags: [Companies]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Next tenant ID
+ */
+router.get(
+  '/next-tenant-id',
+  requirePermission('companies:create'),
+  getNextTenantId
+);
 
 /**
  * @swagger

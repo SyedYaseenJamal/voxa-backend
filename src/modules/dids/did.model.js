@@ -44,6 +44,13 @@ const DidSchema = new mongoose.Schema(
       default: null,
     },
 
+    // User within the company assigned to this specific DID (can have any role)
+    assigned_user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+
     // Optional campaign linkage
     campaign_id: {
       type: mongoose.Schema.Types.ObjectId,

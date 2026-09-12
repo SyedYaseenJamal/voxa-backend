@@ -10,12 +10,39 @@ import AppError from '../../utils/AppError.js';
 import { generatePassword } from '../../utils/generatePassword.js';
 import bcrypt from 'bcryptjs';
 
+export const getNextTenantId = async () => {
+  const tenants = await TenantInfo.find(
+    { tenant_id: { $regex: /^Voxa-tenant-\d+$/i } },
+    { tenant_id: 1 }
+  ).lean();
+
+  let maxNum = 0;
+  for (const t of tenants) {
+    if (!t.tenant_id) continue;
+    const match = t.tenant_id.match(/^Voxa-tenant-(\d+)$/i);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+
+  const nextNum = maxNum + 1;
+  const paddedNum = String(nextNum).padStart(3, '0');
+  return `Voxa-tenant-${paddedNum}`;
+};
+
 export const createCompany = async (companyData, adminEmail, adminFullName, tenantData, planId, createdBy) => {
   const existingUser = await User.findOne({ email: adminEmail });
   if (existingUser) throw new AppError('Admin email is already in use by another user', 400);
 
   const plan = await Plan.findById(planId);
   if (!plan) throw new AppError('Plan not found', 404);
+
+  // Automatically generate tenant_id in format Voxa-tenant-001 (incremented only on successful creation)
+  const autoTenantId = await getNextTenantId();
+  const finalTenantId = (tenantData?.tenant_id && tenantData.tenant_id.trim() && tenantData.tenant_id !== 'TENANT-123') 
+    ? tenantData.tenant_id.trim() 
+    : autoTenantId;
 
   // 1. Create Company
   const company = await Company.create({ ...companyData, createdBy });
@@ -24,7 +51,7 @@ export const createCompany = async (companyData, adminEmail, adminFullName, tena
     // 2. Create Tenant Info
     await TenantInfo.create({
       company_id: company._id,
-      tenant_id: tenantData.tenant_id,
+      tenant_id: finalTenantId,
       region: tenantData.region,
       province: tenantData.province,
       address: tenantData.address,

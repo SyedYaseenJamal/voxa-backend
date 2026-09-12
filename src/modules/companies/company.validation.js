@@ -21,7 +21,7 @@ export const validateCreateCompany = [
   body('forceHalt').optional().isBoolean(),
   body('planId').isMongoId().withMessage('Valid plan ID is required'),
   body('tenant').isObject().withMessage('Tenant info is required'),
-  body('tenant.tenant_id').isString().notEmpty().withMessage('Tenant ID is required'),
+  body('tenant.tenant_id').optional().isString(),
   body('tenant.region').optional().isString(),
   body('tenant.province').optional().isString(),
   body('tenant.address').optional().isString(),
