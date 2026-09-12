@@ -72,7 +72,7 @@ export async function login() {
   const getResp = await axios.get(`${BASE_URL}/`, {
     maxRedirects: 0,
     validateStatus: () => true,
-    timeout: 15000,
+    timeout: 150000,
   });
 
   const initialCookie = extractCiSession(getResp.headers['set-cookie']);
@@ -93,7 +93,7 @@ export async function login() {
     },
     maxRedirects: 0,           // Capture the redirect, don't follow it
     validateStatus: () => true,
-    timeout: 15000,
+    timeout: 150000,
   });
 
   console.log('[OBD CMS] POST /authenticate status:', authResp.status);
@@ -270,7 +270,7 @@ export async function startCampaign(campaignId) {
       headers: { Cookie: sessionCookie },
       maxRedirects: 5,
       validateStatus: () => true,
-      timeout: 15000,
+      timeout: 150000,
     })
   );
 
@@ -293,7 +293,7 @@ export async function getCampaignDetail(campaignId) {
       headers: { Cookie: sessionCookie },
       maxRedirects: 5,
       validateStatus: () => true,
-      timeout: 15000,
+      timeout: 150000,
     })
   );
 
@@ -395,7 +395,7 @@ export async function listAudio() {
       },
       maxRedirects: 5,
       validateStatus: () => true,
-      timeout: 15000,
+      timeout: 150000,
     })
   );
 
@@ -409,9 +409,9 @@ export async function listAudio() {
         ? response.data.data
         : [];
     return raw.map(item => ({
-      id:            String(item.id ?? ''),
+      id: String(item.id ?? ''),
       original_name: String(item.original_name ?? item.name ?? ''),
-      stored_file:   String(item.stored_file ?? item.file ?? ''),
+      stored_file: String(item.stored_file ?? item.file ?? ''),
     }));
   }
 
@@ -426,9 +426,9 @@ export async function listAudio() {
     const cells = $(row).find('td');
     if (cells.length < 2) return;
     audioList.push({
-      id:            $(cells[0]).text().trim(),
+      id: $(cells[0]).text().trim(),
       original_name: $(cells[1]).text().trim(),
-      stored_file:   $(cells[2])?.text().trim() || $(cells[1]).text().trim(),
+      stored_file: $(cells[2])?.text().trim() || $(cells[1]).text().trim(),
     });
   });
 
