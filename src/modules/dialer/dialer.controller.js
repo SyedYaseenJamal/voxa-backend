@@ -55,7 +55,7 @@ export const CONFIG = {
   PSTN_ROUTE:       env('PSTN_ROUTE',        'local'),
   LOCAL_DIAL_FORMAT:env('LOCAL_DIAL_FORMAT', 'national'),
   LOCAL_NO_OPTIMIZE:envBool('LOCAL_NO_OPTIMIZE', true),
-  PSTN_FLOW:        env('PSTN_FLOW',         'auto'),
+  PSTN_FLOW:        env('PSTN_FLOW',         'direct'),
   AGENT_RING_TIMEOUT: envInt('AGENT_RING_TIMEOUT', 30),
   PSTN_RING_TIMEOUT:  envInt('PSTN_RING_TIMEOUT',  60),
   COUNTRY_CODE:     env('COUNTRY_CODE',      '92'),

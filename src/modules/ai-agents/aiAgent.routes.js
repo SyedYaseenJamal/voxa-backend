@@ -23,6 +23,14 @@ import {
   companyListCalls,
   companyGetCall,
   companyTriggerCall,
+  // Company Schemas
+  companyListSchemas,
+  companyCreateSchema,
+  companyUpdateSchema,
+  companyDeleteSchema,
+  // Admin Schemas
+  adminListSchemas,
+  adminCreateSchema,
   // Webhook
   receiveWebhook,
 } from './aiAgent.controller.js';
@@ -248,6 +256,83 @@ router.post(   '/company/calls/trigger',protect, requireCustomerPortal, companyT
  */
 router.get(    '/company/calls/:id',    protect, requireCustomerPortal, companyGetCall);
 
+/**
+ * @swagger
+ * /ai-agents/company/schemas:
+ *   get:
+ *     summary: List Structured Output Schemas available for the company (including defaults)
+ *     tags: [AI Agents (Company Portal)]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of structured output schemas
+ *   post:
+ *     summary: Create a custom Structured Output Schema for call transcript extraction
+ *     tags: [AI Agents (Company Portal)]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, json_schema]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Support Ticket Extraction"
+ *               json_schema:
+ *                 type: object
+ *                 example:
+ *                   type: "object"
+ *                   properties:
+ *                     issue_category: { type: "string" }
+ *                     resolved: { type: "boolean" }
+ *                   required: ["issue_category", "resolved"]
+ *     responses:
+ *       201:
+ *         description: Schema created
+ */
+router.get(    '/company/schemas',      protect, requireCustomerPortal, companyListSchemas);
+router.post(   '/company/schemas',      protect, requireCustomerPortal, companyCreateSchema);
+
+/**
+ * @swagger
+ * /ai-agents/company/schemas/{id}:
+ *   put:
+ *     summary: Update a custom Structured Output Schema
+ *     tags: [AI Agents (Company Portal)]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Schema updated
+ *   delete:
+ *     summary: Delete a custom Structured Output Schema
+ *     tags: [AI Agents (Company Portal)]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Schema deleted
+ */
+router.put(    '/company/schemas/:id',  protect, requireCustomerPortal, companyUpdateSchema);
+router.delete( '/company/schemas/:id',  protect, requireCustomerPortal, companyDeleteSchema);
+
 // ── ADMIN routes ───────────────────────────────────────────────────────────────
 
 /**
@@ -384,5 +469,35 @@ router.post(   '/calls/trigger', protect, requireAdminPortal, adminTriggerCall);
  *         description: Call details returned
  */
 router.get(    '/calls/:id',     protect, requireAdminPortal, adminGetCall);
+
+/**
+ * @swagger
+ * /ai-agents/schemas:
+ *   get:
+ *     summary: List all Structured Output Schemas (Admin)
+ *     tags: [AI Agents (Admin Portal)]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of schemas
+ *   post:
+ *     summary: Create a Structured Output Schema (Admin)
+ *     tags: [AI Agents (Admin Portal)]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, json_schema]
+ *     responses:
+ *       201:
+ *         description: Schema created
+ */
+router.get(    '/schemas',       protect, requireAdminPortal, adminListSchemas);
+router.post(   '/schemas',       protect, requireAdminPortal, adminCreateSchema);
 
 export default router;

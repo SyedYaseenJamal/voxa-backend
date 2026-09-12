@@ -481,3 +481,156 @@ export const receiveWebhook = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+// ── STRUCTURED OUTPUT SCHEMAS (Company & Admin) ────────────────────────────────
+
+export const companyListSchemas = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) return apiError(res, 403, 'No company associated with this user');
+
+    const schemas = await StructuredOutputSchema.find({
+      $or: [{ company_id: companyId }, { is_default: true }],
+      is_active: true,
+    }).sort({ createdAt: -1 });
+
+    return success(res, schemas, 'Structured output schemas fetched');
+  } catch (err) {
+    return apiError(res, 500, err.message);
+  }
+};
+
+export const companyCreateSchema = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) return apiError(res, 403, 'No company associated with this user');
+
+    const { name, json_schema } = req.body;
+    if (!name || !json_schema) return apiError(res, 400, 'name and json_schema are required');
+
+    const crm_user_id = String(companyId);
+    let pipelineSchema = null;
+    try {
+      pipelineSchema = await pipeline('POST', '/v1/structured-output-schemas', {
+        crm_user_id,
+        name,
+        json_schema,
+        is_default: false,
+      });
+    } catch (pipelineErr) {
+      console.warn('[AI-AGENTS] Pipeline schema creation unreachable:', pipelineErr.message);
+    }
+
+    const schemaRecord = await StructuredOutputSchema.create({
+      pipeline_schema_id: pipelineSchema?.id ?? null,
+      company_id: companyId,
+      name,
+      json_schema,
+      is_default: false,
+    });
+
+    return success(res, schemaRecord, 'Structured output schema created', 201);
+  } catch (err) {
+    return apiError(res, err.statusCode ?? 500, err.message);
+  }
+};
+
+export const companyUpdateSchema = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) return apiError(res, 403, 'No company associated with this user');
+
+    const schemaRecord = await StructuredOutputSchema.findOne({ _id: req.params.id, company_id: companyId, is_active: true });
+    if (!schemaRecord) return apiError(res, 404, 'Schema not found');
+
+    const { name, json_schema } = req.body;
+    if (name) schemaRecord.name = name;
+    if (json_schema) schemaRecord.json_schema = json_schema;
+
+    if (schemaRecord.pipeline_schema_id) {
+      try {
+        await pipeline('PUT', `/v1/structured-output-schemas/${schemaRecord.pipeline_schema_id}`, {
+          crm_user_id: String(companyId),
+          name: schemaRecord.name,
+          json_schema: schemaRecord.json_schema,
+          is_default: false,
+        });
+      } catch (pipelineErr) {
+        console.warn('[AI-AGENTS] Pipeline schema update failed:', pipelineErr.message);
+      }
+    }
+
+    await schemaRecord.save();
+    return success(res, schemaRecord, 'Schema updated');
+  } catch (err) {
+    return apiError(res, err.statusCode ?? 500, err.message);
+  }
+};
+
+export const companyDeleteSchema = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) return apiError(res, 403, 'No company associated with this user');
+
+    const schemaRecord = await StructuredOutputSchema.findOne({ _id: req.params.id, company_id: companyId, is_active: true });
+    if (!schemaRecord) return apiError(res, 404, 'Schema not found');
+
+    if (schemaRecord.pipeline_schema_id) {
+      try { await pipeline('DELETE', `/v1/structured-output-schemas/${schemaRecord.pipeline_schema_id}`); } catch (_) {}
+    }
+
+    schemaRecord.is_active = false;
+    await schemaRecord.save();
+    return success(res, null, 'Schema deleted');
+  } catch (err) {
+    return apiError(res, 500, err.message);
+  }
+};
+
+export const adminListSchemas = async (req, res) => {
+  try {
+    const filter = { is_active: true };
+    if (req.query.company_id) filter.company_id = req.query.company_id;
+
+    const schemas = await StructuredOutputSchema.find(filter)
+      .populate('company_id', 'name status')
+      .sort({ createdAt: -1 });
+
+    return success(res, schemas, 'Schemas fetched');
+  } catch (err) {
+    return apiError(res, 500, err.message);
+  }
+};
+
+export const adminCreateSchema = async (req, res) => {
+  try {
+    const { company_id, name, json_schema, is_default } = req.body;
+    if (!name || !json_schema) return apiError(res, 400, 'name and json_schema are required');
+
+    const crm_user_id = company_id ? String(company_id) : null;
+    let pipelineSchema = null;
+    try {
+      pipelineSchema = await pipeline('POST', '/v1/structured-output-schemas', {
+        crm_user_id,
+        name,
+        json_schema,
+        is_default: Boolean(is_default),
+      });
+    } catch (pipelineErr) {
+      console.warn('[AI-AGENTS] Pipeline schema creation unreachable:', pipelineErr.message);
+    }
+
+    const schemaRecord = await StructuredOutputSchema.create({
+      pipeline_schema_id: pipelineSchema?.id ?? null,
+      company_id: company_id ?? null,
+      name,
+      json_schema,
+      is_default: Boolean(is_default),
+    });
+
+    return success(res, schemaRecord, 'Schema created', 201);
+  } catch (err) {
+    return apiError(res, err.statusCode ?? 500, err.message);
+  }
+};
+
