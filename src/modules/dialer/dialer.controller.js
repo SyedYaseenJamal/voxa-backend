@@ -1087,10 +1087,14 @@ export const postCallPstn = [
       destination: e164
     });
     // caller_id (from DID dropdown) takes precedence, then pstnCallerId, then global default
-    const pstnCallerId =
+    const rawCallerId =
       cleanCallerId(req.body?.caller_id) ||
       cleanCallerId(req.body?.pstnCallerId) ||
       CONFIG.PSTN_CALLER_ID;
+    // PTCL rejects calls unless the Caller ID is full E.164 -- normalise it
+    // the same way the destination number already is.
+    let pstnCallerId = rawCallerId;
+    try { pstnCallerId = toE164(rawCallerId); } catch { /* keep raw value */ }
     const agentExtension = requireEndpoint(req.body?.agentExtension || CONFIG.AGENT_EXTENSION, 'agentExtension');
     const flow = await resolveFlow(
       agentExtension,
