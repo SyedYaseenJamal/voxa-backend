@@ -5,6 +5,7 @@ import MetaForm from './metaForm.model.js';
 import LeadList from './leadList.model.js';
 import Lead from './lead.model.js';
 import Message from './message.model.js';
+import Company from '../companies/company.model.js';
 import { success as apiSuccess, error as apiError } from '../../utils/ApiResponse.js';
 
 const generateWebhookVerifyToken = () => {
@@ -771,3 +772,146 @@ export const receiveWebhook = async (req, res, next) => {
     res.status(200).send('EVENT_RECEIVED');
   }
 };
+
+// ─── ADMIN OMNICHANNEL OVERVIEW & COMPANY DRILL-DOWN ──────────────────
+
+const maskIntegrationCredentials = (credsObj) => {
+  if (!credsObj) return {};
+  const masked = { ...(credsObj.toObject?.() || credsObj) };
+  if (masked.metaPageAccessToken) {
+    masked.metaPageAccessToken = '••••••••' + masked.metaPageAccessToken.slice(-6);
+  }
+  if (masked.metaAppSecret) {
+    masked.metaAppSecret = '••••••••';
+  }
+  if (masked.shopifyAccessToken) {
+    masked.shopifyAccessToken = '••••••••' + masked.shopifyAccessToken.slice(-6);
+  }
+  if (masked.shopifyApiSecretKey) {
+    masked.shopifyApiSecretKey = '••••••••';
+  }
+  if (masked.darazAppSecret) {
+    masked.darazAppSecret = '••••••••';
+  }
+  if (masked.darazAccessToken) {
+    masked.darazAccessToken = '••••••••' + masked.darazAccessToken.slice(-6);
+  }
+  return masked;
+};
+
+/**
+ * Get platform-wide omnichannel statistics and all companies' channel statuses (Admin only)
+ */
+export const getAdminOverview = async (req, res, next) => {
+  try {
+    const [companies, integrations] = await Promise.all([
+      Company.find({}).select('name businessType status billingModel createdAt').lean(),
+      PlatformIntegration.find({}).lean()
+    ]);
+
+    const platforms = ['shopify', 'daraz', 'meta', 'whatsapp', 'sms', 'email'];
+    const byPlatform = {};
+    platforms.forEach(p => {
+      byPlatform[p] = { active: 0, error: 0, total: 0 };
+    });
+
+    let totalActiveIntegrations = 0;
+    let totalErrors = 0;
+    let totalLeadsCaptured = 0;
+
+    // Map integrations by companyId
+    const integrationsByCompany = new Map();
+    integrations.forEach(intg => {
+      const cId = String(intg.companyId);
+      if (!integrationsByCompany.has(cId)) {
+        integrationsByCompany.set(cId, []);
+      }
+      integrationsByCompany.get(cId).push({
+        _id: intg._id,
+        platformType: intg.platformType,
+        status: intg.status,
+        leadsReceivedCount: intg.leadsReceivedCount || 0,
+        lastSyncAt: intg.lastSyncAt,
+        connectedAt: intg.connectedAt,
+        credentials: maskIntegrationCredentials(intg.credentials)
+      });
+
+      if (byPlatform[intg.platformType]) {
+        byPlatform[intg.platformType].total += 1;
+        if (intg.status === 'active') {
+          byPlatform[intg.platformType].active += 1;
+          totalActiveIntegrations += 1;
+        } else if (intg.status === 'error') {
+          byPlatform[intg.platformType].error += 1;
+          totalErrors += 1;
+        }
+      }
+
+      totalLeadsCaptured += (intg.leadsReceivedCount || 0);
+    });
+
+    // Enrich companies
+    const enrichedCompanies = companies.map(c => {
+      const companyIntgs = integrationsByCompany.get(String(c._id)) || [];
+      return {
+        ...c,
+        integrations: companyIntgs
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        stats: {
+          totalCompanies: companies.length,
+          totalActiveIntegrations,
+          totalErrors,
+          totalLeadsCaptured,
+          byPlatform
+        },
+        companies: enrichedCompanies
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Get all integrations and detailed configuration for a specific company (Admin only)
+ */
+export const getAdminCompanyIntegrations = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+    const [company, integrations] = await Promise.all([
+      Company.findById(companyId).select('name businessType status billingModel createdAt').lean(),
+      PlatformIntegration.find({ companyId }).lean()
+    ]);
+
+    if (!company) {
+      return apiError(res, 404, 'Company not found');
+    }
+
+    const maskedIntegrations = integrations.map(intg => ({
+      _id: intg._id,
+      platformType: intg.platformType,
+      status: intg.status,
+      leadsReceivedCount: intg.leadsReceivedCount || 0,
+      lastSyncAt: intg.lastSyncAt,
+      connectedAt: intg.connectedAt,
+      webhookVerifyToken: intg.webhookVerifyToken,
+      credentials: maskIntegrationCredentials(intg.credentials)
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        company,
+        integrations: maskedIntegrations
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+

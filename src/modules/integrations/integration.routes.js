@@ -12,10 +12,16 @@ import {
   getMessagesByPsid,
   sendMessengerMessage,
   verifyWebhook,
-  receiveWebhook
+  receiveWebhook,
+  getAdminOverview,
+  getAdminCompanyIntegrations
 } from './integration.controller.js';
 
 const router = Router();
+
+// ─── ADMIN ROUTES (Platform-wide Omnichannel overview & Company Drill-down) ──
+router.get('/admin/overview', protect, getAdminOverview);
+router.get('/admin/company/:companyId', protect, getAdminCompanyIntegrations);
 
 // ─── PUBLIC WEBHOOK ROUTES (Meta subscription & capture) ───────────────
 // Both standard global webhook and company-specific webhook are supported.
