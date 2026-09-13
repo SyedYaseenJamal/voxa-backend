@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const PlatformIntegrationSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
   platformType: { type: String, enum: ['meta', 'whatsapp', 'sms', 'email'], required: true },
+  webhookVerifyToken: { type: String, index: true },
   credentials: {
     metaAppId: { type: String },
     metaAppSecret: { type: String },

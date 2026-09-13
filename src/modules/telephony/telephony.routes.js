@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { protect } from '../../middlewares/authenticate.js';
 import {
   checkRecording,
   streamRecording,
@@ -6,9 +7,16 @@ import {
   processCall,
   transcribeCall,
   summarizeCall,
+  getCompanyCallLogs,
+  getCallNotes,
+  addCallNote,
 } from './telephony.controller.js';
 
 const router = Router();
+
+router.get('/company/logs', protect, getCompanyCallLogs);
+router.get('/notes/:callId', protect, getCallNotes);
+router.post('/notes/:callId', protect, addCallNote);
 
 /**
  * @swagger

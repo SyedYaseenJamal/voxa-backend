@@ -1,6 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
+import User from '../auth/auth.model.js';
+import Lead from '../integrations/lead.model.js';
+import Did from '../dids/did.model.js';
 import { CallAnalysis } from './callAnalysis.model.js';
+import { CallNote } from './callNote.model.js';
 import { findRecordingFile, callPipelineProcess, callPipelineTranscribe, callPipelineSummarize } from './telephony.service.js';
 import { success, error as apiError } from '../../utils/ApiResponse.js';
 
@@ -188,3 +193,171 @@ export const summarizeCall = async (req, res) => {
     return apiError(res, 500, err.message);
   }
 };
+
+/**
+ * GET /api/v1/telephony/company/logs
+ * Returns company call logs with role-based filtering, user tracking, and company-segregated lead matching.
+ */
+export const getCompanyCallLogs = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const userId = req.user.userId;
+
+    if (!companyId) {
+      return apiError(res, 400, 'Company ID is missing from user session');
+    }
+
+    // 1. Fetch user & role details
+    const currentUser = await User.findById(userId).populate('roleId');
+    const roleName = currentUser?.roleId?.name || req.user.role || 'User';
+    const normalizedRoleName = roleName.toLowerCase();
+    
+    // Check if user is Super Admin or Admin for this company
+    const isCompanyAdmin = req.user.portal === 'admin' || 
+                           normalizedRoleName.includes('admin') || 
+                           normalizedRoleName.includes('super');
+
+    // 2. Fetch call logs from Asterisk API
+    const authRes = await axios.get('http://172.16.17.127/api/api.php?action=GenerateAuthKey&user=apiUAsk&pass=7xK9pQ2mW5vB');
+    if (authRes.data?.status !== 'success') {
+      return apiError(res, 500, 'Failed to authenticate with call logs provider');
+    }
+    const token = authRes.data.data.token;
+    const logsRes = await axios.get('http://172.16.17.127/api/api.php?action=GetRecentCalls', {
+      headers: { 'X-Auth-Token': token }
+    });
+    const allCalls = logsRes.data?.data?.recent_calls || [];
+
+    // 3. Fetch DIDs, Users & Leads strictly for THIS company
+    const [dids, companyUsers, leads] = await Promise.all([
+      Did.find({ company_id: companyId }).populate('assigned_user_id', 'fullName email phoneNumber'),
+      User.find({ companyId }),
+      Lead.find({ companyId }, 'fullName phoneE164 email')
+    ]);
+
+    const normalize = (num) => (num || '').replace(/\D/g, '').slice(-10);
+
+    // Map leads strictly for this company by normalized phone number
+    const leadMap = {};
+    leads.forEach(l => {
+      const core = normalize(l.phoneE164);
+      if (core && l.fullName) {
+        leadMap[core] = l.fullName;
+      }
+    });
+
+    // Map extensions / DIDs / phone numbers to company user names
+    const userExtMap = {};
+    companyUsers.forEach(u => {
+      if (u.phoneNumber) userExtMap[normalize(u.phoneNumber)] = u.fullName;
+      if (u.username) userExtMap[u.username] = u.fullName;
+    });
+    dids.forEach(d => {
+      if (d.assigned_user_id?.fullName) {
+        const core = normalize(d.did_number);
+        if (core) userExtMap[core] = d.assigned_user_id.fullName;
+      }
+    });
+
+    // Determine numbers/extensions assigned to current user
+    const userNumbers = new Set();
+    if (currentUser?.phoneNumber) userNumbers.add(normalize(currentUser.phoneNumber));
+    if (currentUser?.username) userNumbers.add(currentUser.username);
+    dids.forEach(d => {
+      const assignedId = d.assigned_user_id?._id || d.assigned_user_id;
+      if (assignedId && String(assignedId) === String(userId)) {
+        userNumbers.add(normalize(d.did_number));
+      }
+    });
+
+    const annotatedCalls = [];
+
+    for (const call of allCalls) {
+      const callerCore = normalize(call.callerid);
+      const destCore = normalize(call.destination);
+      const ext = call.extension || '';
+
+      const isUserCall = userNumbers.has(callerCore) || userNumbers.has(destCore) || userNumbers.has(ext);
+
+      // Role-based filtering: non-admins can only see calls they made/received
+      if (!isCompanyAdmin && !isUserCall) {
+        continue;
+      }
+
+      // Determine user name who made/received call
+      const userName = userExtMap[ext] || userExtMap[callerCore] || userExtMap[destCore] || (isUserCall ? currentUser.fullName : null);
+
+      // Match lead name for this company strictly
+      const leadName = leadMap[destCore] || leadMap[callerCore] || null;
+
+      annotatedCalls.push({
+        ...call,
+        userName,
+        leadName
+      });
+    }
+
+    return success(res, {
+      logs: annotatedCalls,
+      isCompanyAdmin,
+      roleName
+    }, 'Company call logs fetched successfully');
+  } catch (err) {
+    console.error('[Telephony Controller] getCompanyCallLogs Error:', err);
+    return apiError(res, 500, err.message);
+  }
+};
+
+/**
+ * GET /api/v1/telephony/notes/:callId
+ * Fetch notes for a specific call ID scoped to company.
+ */
+export const getCallNotes = async (req, res) => {
+  try {
+    const { callId } = req.params;
+    const companyId = req.user.companyId;
+
+    if (!companyId) {
+      return apiError(res, 400, 'Company ID missing from user session');
+    }
+
+    const notes = await CallNote.find({ companyId, callId }).sort({ createdAt: -1 });
+    return success(res, notes, 'Call notes fetched successfully');
+  } catch (err) {
+    return apiError(res, 500, err.message);
+  }
+};
+
+/**
+ * POST /api/v1/telephony/notes/:callId
+ * Add a new note for a specific call ID.
+ */
+export const addCallNote = async (req, res) => {
+  try {
+    const { callId } = req.params;
+    const { note } = req.body;
+    const companyId = req.user.companyId;
+    const userId = req.user.userId;
+
+    if (!note || !note.trim()) {
+      return apiError(res, 400, 'Note text is required');
+    }
+
+    const currentUser = await User.findById(userId);
+    const authorName = currentUser?.fullName || req.user.email || 'User';
+
+    const newNote = await CallNote.create({
+      companyId,
+      callId,
+      userId,
+      authorName,
+      note: note.trim()
+    });
+
+    return success(res, newNote, 'Call note added successfully');
+  } catch (err) {
+    return apiError(res, 500, err.message);
+  }
+};
+
+

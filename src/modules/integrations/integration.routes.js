@@ -8,6 +8,9 @@ import {
   createMetaForm,
   getMetaLeads,
   getLeadsByFormId,
+  getMessages,
+  getMessagesByPsid,
+  sendMessengerMessage,
   verifyWebhook,
   receiveWebhook
 } from './integration.controller.js';
@@ -32,4 +35,10 @@ router.post('/meta/forms', protect, createMetaForm);
 router.get('/meta/leads', protect, getMetaLeads);
 router.get('/meta/forms/:formId/leads', protect, getLeadsByFormId);
 
+// ─── MESSENGER ROUTES ───────────────────────────────────────────────────
+router.get('/messages', protect, getMessages);
+router.get('/messages/:psid', protect, getMessagesByPsid);
+router.post('/messages/send', protect, sendMessengerMessage);
+
 export default router;
+

@@ -61,6 +61,15 @@ app.use('/api/v1/dids', didRoutes);
 app.use('/api/v1/ai-agents', aiAgentRoutes);
 app.use('/api/v1/telephony', telephonyRoutes);
 
+// Root aliases matching MESSENGER_API.md spec (/api/messages and /webhook)
+app.use('/api/messages', (req, res, next) => {
+  req.url = '/messages' + req.url;
+  return integrationRoutes(req, res, next);
+});
+app.use('/webhook', (req, res, next) => {
+  req.url = '/webhook/meta' + req.url;
+  return integrationRoutes(req, res, next);
+});
 
 // Swagger docs (available in all environments — restrict in prod if needed)
 const CSS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui.min.css';
