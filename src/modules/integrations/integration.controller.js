@@ -44,6 +44,18 @@ export const getConfig = async (req, res, next) => {
     if (maskedCreds.metaAppSecret) {
       maskedCreds.metaAppSecret = '••••••••';
     }
+    if (maskedCreds.shopifyAccessToken) {
+      maskedCreds.shopifyAccessToken = '••••••••' + maskedCreds.shopifyAccessToken.slice(-6);
+    }
+    if (maskedCreds.shopifyApiSecretKey) {
+      maskedCreds.shopifyApiSecretKey = '••••••••';
+    }
+    if (maskedCreds.darazAppSecret) {
+      maskedCreds.darazAppSecret = '••••••••';
+    }
+    if (maskedCreds.darazAccessToken) {
+      maskedCreds.darazAccessToken = '••••••••' + maskedCreds.darazAccessToken.slice(-6);
+    }
 
     res.json({
       success: true,
@@ -77,10 +89,12 @@ export const saveConfig = async (req, res, next) => {
     }
 
     // Validate platform type
-    const allowed = ['meta', 'whatsapp', 'sms', 'email'];
+    const allowed = ['meta', 'whatsapp', 'sms', 'email', 'shopify', 'daraz'];
     if (!allowed.includes(platformType)) {
       return apiError(res, 400, `Platform ${platformType} is not supported`);
     }
+
+    const existing = await PlatformIntegration.findOne({ companyId, platformType });
 
     // Prepare credentials from request body
     const credentials = {};
@@ -89,9 +103,6 @@ export const saveConfig = async (req, res, next) => {
       if (!metaPageAccessToken || !metaPageId) {
         return apiError(res, 400, 'metaPageAccessToken and metaPageId are required for Meta integration');
       }
-
-      // If credentials already exist and we received masked values, preserve original values
-      const existing = await PlatformIntegration.findOne({ companyId, platformType });
 
       credentials.metaAppId = metaAppId;
       credentials.metaAppSecret = (metaAppSecret && !metaAppSecret.includes('••'))
@@ -104,6 +115,43 @@ export const saveConfig = async (req, res, next) => {
 
       credentials.metaPageId = metaPageId;
       credentials.metaAdAccountId = metaAdAccountId;
+    } else if (platformType === 'shopify') {
+      const { shopifyShopUrl, shopifyAccessToken, shopifyApiKey, shopifyApiSecretKey, shopifyApiVersion } = req.body;
+      if (!shopifyShopUrl || !shopifyAccessToken) {
+        return apiError(res, 400, 'shopifyShopUrl and shopifyAccessToken are required for Shopify integration');
+      }
+
+      credentials.shopifyShopUrl = shopifyShopUrl;
+      credentials.shopifyAccessToken = (shopifyAccessToken && !shopifyAccessToken.includes('••'))
+        ? shopifyAccessToken
+        : existing?.credentials?.shopifyAccessToken;
+
+      credentials.shopifyApiKey = shopifyApiKey;
+      credentials.shopifyApiSecretKey = (shopifyApiSecretKey && !shopifyApiSecretKey.includes('••'))
+        ? shopifyApiSecretKey
+        : existing?.credentials?.shopifyApiSecretKey;
+
+      credentials.shopifyApiVersion = shopifyApiVersion || '2024-04';
+    } else if (platformType === 'daraz') {
+      const { darazShopName, darazSellerId, darazAppKey, darazAppSecret, darazAccessToken, darazRegion } = req.body;
+      if (!darazAppKey || !darazAppSecret || !darazAccessToken) {
+        return apiError(res, 400, 'darazAppKey, darazAppSecret, and darazAccessToken are required for Daraz integration');
+      }
+
+      credentials.darazShopName = darazShopName;
+      credentials.darazSellerId = darazSellerId;
+      credentials.darazAppKey = darazAppKey;
+      credentials.darazAppSecret = (darazAppSecret && !darazAppSecret.includes('••'))
+        ? darazAppSecret
+        : existing?.credentials?.darazAppSecret;
+
+      credentials.darazAccessToken = (darazAccessToken && !darazAccessToken.includes('••'))
+        ? darazAccessToken
+        : existing?.credentials?.darazAccessToken;
+
+      credentials.darazRegion = darazRegion || 'PK';
+    } else {
+      Object.assign(credentials, req.body);
     }
 
     const existingDoc = await PlatformIntegration.findOne({ companyId, platformType });
