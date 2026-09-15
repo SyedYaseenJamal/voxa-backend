@@ -371,13 +371,17 @@ export const getLeadsByFormId = async (req, res, next) => {
 
     const leads = (response.data?.data || []).map(lead => {
       const fields = {};
-      lead.field_data?.forEach(f => { fields[f.name] = f.values?.[0] || ''; });
+      lead.field_data?.forEach(f => {
+        const val = f.values?.[0] || '';
+        fields[f.name] = val;
+        if (f.name) fields[f.name.toLowerCase()] = val;
+      });
       return {
         id: lead.id,
         created_time: lead.created_time,
-        fullName: fields.full_name || fields.name || '—',
-        email: fields.email || '—',
-        phone: fields.phone_number || fields.phone || '—',
+        fullName: fields.full_name || fields.name || fields.FULL_NAME || (fields.first_name ? `${fields.first_name} ${fields.last_name || ''}`.trim() : '') || '—',
+        email: fields.email || fields.EMAIL || fields.work_email || '—',
+        phone: fields.phone_number || fields.phone || fields.PHONE || fields.work_phone_number || '—',
         raw: fields
       };
     });
