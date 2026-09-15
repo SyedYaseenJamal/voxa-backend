@@ -4,6 +4,7 @@ import axios from 'axios';
 import User from '../auth/auth.model.js';
 import Lead from '../integrations/lead.model.js';
 import Did from '../dids/did.model.js';
+import Company from '../companies/company.model.js';
 import { CallAnalysis } from './callAnalysis.model.js';
 import { CallNote } from './callNote.model.js';
 import { findRecordingFile, callPipelineProcess, callPipelineTranscribe, callPipelineSummarize } from './telephony.service.js';
@@ -307,6 +308,128 @@ export const getCompanyCallLogs = async (req, res) => {
     return apiError(res, 500, err.message);
   }
 };
+
+/**
+ * GET /api/v1/telephony/admin/logs
+ * Admin-only: returns ALL calls enriched with userName, companyName, companyId.
+ * Supports optional query param: ?companyId=<id> to server-side filter by company.
+ */
+export const getAdminMasterLogs = async (req, res) => {
+  try {
+    // Only admin portal users can call this
+    if (req.user?.portal !== 'admin') {
+      return apiError(res, 403, 'Admin access required');
+    }
+
+    const filterCompanyId = req.query.companyId || null;
+
+    // 1. Fetch all calls from Asterisk
+    const authRes = await axios.get('http://172.16.17.127/api/api.php?action=GenerateAuthKey&user=apiUAsk&pass=7xK9pQ2mW5vB');
+    if (authRes.data?.status !== 'success') {
+      return apiError(res, 500, 'Failed to authenticate with call logs provider');
+    }
+    const token = authRes.data.data.token;
+    const logsRes = await axios.get('http://172.16.17.127/api/api.php?action=GetRecentCalls', {
+      headers: { 'X-Auth-Token': token }
+    });
+    const allCalls = logsRes.data?.data?.recent_calls || [];
+
+    // 2. Load all companies
+    const companies = await Company.find({}, '_id name tenantId').lean();
+
+    // 3. Load all DIDs (with assigned_user_id populated) across all companies
+    const allDids = await Did.find({
+      company_id: { $ne: null },
+      status: 'assigned',
+      is_active: true,
+    }).populate('assigned_user_id', 'fullName email phoneNumber username')
+      .populate('company_id', 'name')
+      .lean();
+
+    // 4. Load all company users
+    const allUsers = await User.find(
+      { portal: 'customer', companyId: { $ne: null } },
+      'fullName email phoneNumber username companyId'
+    ).lean();
+
+    const normalize = (num) => (num || '').replace(/\D/g, '').slice(-10);
+
+    // Build company lookup map: companyId (string) → company name
+    const companyNameMap = {};
+    companies.forEach(c => {
+      companyNameMap[String(c._id)] = c.name;
+    });
+
+    // Build DID-based lookup: extension/phone → { userName, companyId, companyName }
+    // Keyed by normalized phone number of the DID
+    const extMap = {};
+
+    allDids.forEach(d => {
+      if (!d.assigned_user_id?.fullName) return;
+      const cId = String(d.company_id?._id || d.company_id || '');
+      const cName = d.company_id?.name || companyNameMap[cId] || 'Unknown Company';
+      const core = normalize(d.did_number);
+      if (core) {
+        extMap[core] = {
+          userName: d.assigned_user_id.fullName,
+          companyId: cId,
+          companyName: cName,
+        };
+      }
+      // Also key by the full DID number in case normalize strips too much
+      const raw = (d.did_number || '').trim();
+      if (raw && raw !== core) {
+        extMap[raw] = extMap[core];
+      }
+    });
+
+    // Also map users by their phoneNumber and username (extension)
+    allUsers.forEach(u => {
+      const cId = String(u.companyId || '');
+      const cName = companyNameMap[cId] || 'Unknown Company';
+      const info = { userName: u.fullName, companyId: cId, companyName: cName };
+      if (u.phoneNumber) {
+        const core = normalize(u.phoneNumber);
+        if (core && !extMap[core]) extMap[core] = info;
+      }
+      if (u.username) {
+        if (!extMap[u.username]) extMap[u.username] = info;
+      }
+    });
+
+    // 5. Annotate every call
+    const annotatedCalls = allCalls.map(call => {
+      const callerCore = normalize(call.callerid);
+      const destCore = normalize(call.destination);
+      const ext = call.extension || '';
+
+      const match = extMap[ext] || extMap[callerCore] || extMap[destCore] || null;
+
+      const annotated = {
+        ...call,
+        userName: match?.userName || null,
+        companyId: match?.companyId || null,
+        companyName: match?.companyName || null,
+      };
+      return annotated;
+    });
+
+    // 6. Optional server-side company filter
+    const resultCalls = filterCompanyId && filterCompanyId !== 'all'
+      ? annotatedCalls.filter(c => c.companyId === filterCompanyId)
+      : annotatedCalls;
+
+    return success(res, {
+      logs: resultCalls,
+      totalAll: annotatedCalls.length,
+      totalFiltered: resultCalls.length,
+    }, 'Admin master call logs fetched successfully');
+  } catch (err) {
+    console.error('[Telephony Controller] getAdminMasterLogs Error:', err);
+    return apiError(res, 500, err.message);
+  }
+};
+
 
 /**
  * GET /api/v1/telephony/notes/:callId

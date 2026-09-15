@@ -8,6 +8,7 @@ import {
   transcribeCall,
   summarizeCall,
   getCompanyCallLogs,
+  getAdminMasterLogs,
   getCallNotes,
   addCallNote,
 } from './telephony.controller.js';
@@ -15,6 +16,7 @@ import {
 const router = Router();
 
 router.get('/company/logs', protect, getCompanyCallLogs);
+router.get('/admin/logs', protect, getAdminMasterLogs);
 router.get('/notes/:callId', protect, getCallNotes);
 router.post('/notes/:callId', protect, addCallNote);
 
