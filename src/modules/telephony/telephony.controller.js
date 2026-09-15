@@ -5,6 +5,7 @@ import User from '../auth/auth.model.js';
 import Lead from '../integrations/lead.model.js';
 import Did from '../dids/did.model.js';
 import Company from '../companies/company.model.js';
+import PlatformIntegration from '../integrations/platformIntegration.model.js';
 import { CallAnalysis } from './callAnalysis.model.js';
 import { CallNote } from './callNote.model.js';
 import { findRecordingFile, callPipelineProcess, callPipelineTranscribe, callPipelineSummarize } from './telephony.service.js';
@@ -238,6 +239,98 @@ function extractChannelEndpoint(channelStr) {
   return null;
 }
 
+function getPhoneKeys(phone) {
+  if (!phone) return [];
+  const str = String(phone).trim();
+  const angleMatch = str.match(/<([^>]+)>/);
+  const target = angleMatch ? angleMatch[1] : str;
+  const digitsOnly = target.replace(/\D/g, '');
+  const raw = target.replace(/["'\s]/g, '').trim();
+
+  const keys = new Set();
+  if (raw) {
+    keys.add(raw);
+    if (raw.length >= 7) {
+      for (let len = 7; len <= raw.length; len++) {
+        keys.add(raw.slice(0, len));
+      }
+    }
+  }
+
+  if (digitsOnly) {
+    keys.add(digitsOnly);
+    // Suffixes:
+    if (digitsOnly.length >= 10) keys.add(digitsOnly.slice(-10));
+    if (digitsOnly.length >= 9) keys.add(digitsOnly.slice(-9));
+    if (digitsOnly.length >= 8) keys.add(digitsOnly.slice(-8));
+    if (digitsOnly.length >= 7) keys.add(digitsOnly.slice(-7));
+
+    // Prefixes (e.g. Asterisk truncates extensions/DIDs to 10 chars):
+    if (digitsOnly.length >= 7) {
+      for (let len = 7; len <= digitsOnly.length; len++) {
+        keys.add(digitsOnly.slice(0, len));
+      }
+    }
+
+    if (digitsOnly.startsWith('92') && digitsOnly.length > 2) {
+      const rest = digitsOnly.slice(2);
+      keys.add(rest);
+      keys.add('0' + rest);
+      if (rest.length >= 6) {
+        for (let len = 6; len <= rest.length; len++) {
+          keys.add(rest.slice(0, len));
+          keys.add('0' + rest.slice(0, len));
+        }
+      }
+    }
+    if (digitsOnly.startsWith('0') && digitsOnly.length > 1) {
+      const rest = digitsOnly.slice(1);
+      keys.add(rest);
+      keys.add('92' + rest);
+      if (rest.length >= 6) {
+        for (let len = 6; len <= rest.length; len++) {
+          keys.add(rest.slice(0, len));
+          keys.add('92' + rest.slice(0, len));
+        }
+      }
+    }
+  }
+  return Array.from(keys);
+}
+
+function matchDidInfo(callKeys, lookupMap, didList) {
+  // 1. Direct exact key match
+  for (const k of callKeys) {
+    if (k && lookupMap[k]) return lookupMap[k];
+  }
+
+  // 2. Prefix / substring match against registered DIDs
+  if (Array.isArray(didList) && didList.length > 0) {
+    for (const k of callKeys) {
+      if (!k) continue;
+      const cleanK = String(k).replace(/\D/g, '');
+      if (cleanK.length >= 6) {
+        for (const d of didList) {
+          const didNum = d.did_number || '';
+          const cleanDid = didNum.replace(/\D/g, '');
+          if (!cleanDid) continue;
+
+          const isPrefix = cleanDid.startsWith(cleanK) || cleanK.startsWith(cleanDid);
+          const isSubstr = (cleanK.length >= 7 && cleanDid.includes(cleanK)) || 
+                           (cleanDid.length >= 7 && cleanK.includes(cleanDid));
+
+          if (isPrefix || isSubstr) {
+            const hit = lookupMap[cleanDid] || lookupMap[didNum] || lookupMap[String(d._id)];
+            if (hit) return hit;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function normalizeNumber(num) {
   if (!num) return '';
   const str = String(num).trim();
@@ -276,9 +369,19 @@ export const getCompanyCallLogs = async (req, res) => {
                            normalizedRoleName.includes('admin') || 
                            normalizedRoleName.includes('super');
 
-    // 2. Fetch call logs from Asterisk API
-    const authRes = await axios.get('http://172.16.17.127/api/api.php?action=GenerateAuthKey&user=apiUAsk&pass=7xK9pQ2mW5vB');
-    if (authRes.data?.status !== 'success') {
+    // 2. Fetch call logs from Asterisk API and DB entities in parallel
+    const [authRes, dids, companyUsers, leads, metaIntegration] = await Promise.all([
+      axios.get('http://172.16.17.127/api/api.php?action=GenerateAuthKey&user=apiUAsk&pass=7xK9pQ2mW5vB').catch(() => null),
+      Did.find({ company_id: companyId, is_active: true, released_at: null })
+        .populate('assigned_user_id', 'fullName email phoneNumber username')
+        .sort({ assigned_at: -1, createdAt: -1 })
+        .lean(),
+      User.find({ companyId }, 'fullName email phoneNumber username roleId').populate('roleId', 'name').lean(),
+      Lead.find({ companyId }, 'fullName phoneE164 email sourcePayload').lean(),
+      PlatformIntegration.findOne({ companyId, platformType: 'meta' }).catch(() => null)
+    ]);
+
+    if (authRes?.data?.status !== 'success') {
       return apiError(res, 500, 'Failed to authenticate with call logs provider');
     }
     const token = authRes.data.data.token;
@@ -287,64 +390,102 @@ export const getCompanyCallLogs = async (req, res) => {
     });
     const allCalls = logsRes.data?.data?.recent_calls || [];
 
-    // 3. Fetch DIDs, Users & Leads strictly for THIS company
-    const [dids, companyUsers, leads, companyDoc] = await Promise.all([
-      Did.find({ company_id: companyId }).populate('assigned_user_id', 'fullName email phoneNumber username'),
-      User.find({ companyId }, 'fullName email phoneNumber username roleId').populate('roleId', 'name'),
-      Lead.find({ companyId }, 'fullName phoneE164 email'),
-      Company.findById(companyId, 'name tenant')
-    ]);
-
     // Find primary admin user as fallback for company-level calls
     const primaryAdminUser = companyUsers.find(u => {
       const r = (u.roleId?.name || '').toLowerCase();
       return r.includes('super') || r.includes('admin');
-    }) || companyUsers[0] || currentUser;
+    }) || companyUsers.find(u => String(u._id) === String(userId)) || companyUsers[0] || currentUser;
 
-    // Map leads strictly for this company by normalized phone number
+    // Map leads strictly for this company by all phone number formats
     const leadMap = {};
     leads.forEach(l => {
-      const core = normalizeNumber(l.phoneE164);
-      const raw = extractRawNumber(l.phoneE164);
-      if (core && l.fullName) leadMap[core] = l.fullName;
-      if (raw && l.fullName) leadMap[raw] = l.fullName;
+      const name = l.fullName || (l.sourcePayload?.full_name || l.sourcePayload?.name || '');
+      if (name && l.phoneE164) {
+        getPhoneKeys(l.phoneE164).forEach(k => {
+          if (!leadMap[k]) leadMap[k] = name;
+        });
+      }
     });
 
-    // Map extensions / DIDs / phone numbers / usernames to company user names
-    const userExtMap = {};
-    companyUsers.forEach(u => {
-      if (!u.fullName) return;
-      userExtMap[String(u._id)] = u.fullName;
-      if (u.username) {
-        userExtMap[u.username.trim()] = u.fullName;
-        userExtMap[u.username.toLowerCase().trim()] = u.fullName;
-        const normUser = normalizeNumber(u.username);
-        if (normUser) userExtMap[normUser] = u.fullName;
+    // If Meta integration exists, also fetch Meta form leads non-blockingly
+    if (metaIntegration?.credentials?.metaPageAccessToken && metaIntegration?.credentials?.metaPageId) {
+      try {
+        const metaToken = metaIntegration.credentials.metaPageAccessToken;
+        const pageId = metaIntegration.credentials.metaPageId;
+        const formsRes = await axios.get(`https://graph.facebook.com/v20.0/${pageId}/leadgen_forms`, {
+          params: { access_token: metaToken, limit: 50 },
+          timeout: 3500
+        }).catch(() => null);
+
+        const forms = formsRes?.data?.data || [];
+        if (forms.length > 0) {
+          const formPromises = forms.map(f =>
+            axios.get(`https://graph.facebook.com/v20.0/${f.id}/leads`, {
+              params: { access_token: metaToken, fields: 'id,created_time,field_data', limit: 100 },
+              timeout: 3500
+            }).catch(() => null)
+          );
+          const formResults = await Promise.allSettled(formPromises);
+          formResults.forEach(r => {
+            if (r.status === 'fulfilled' && r.value?.data?.data) {
+              r.value.data.data.forEach(item => {
+                const fields = {};
+                item.field_data?.forEach(fd => {
+                  const val = fd.values?.[0] || '';
+                  if (fd.name) fields[fd.name.toLowerCase()] = val;
+                });
+                const name = fields.full_name || fields.name || fields.first_name || '';
+                const phone = fields.phone_number || fields.phone || '';
+                if (phone && name) {
+                  getPhoneKeys(phone).forEach(k => {
+                    if (!leadMap[k]) leadMap[k] = name;
+                  });
+                }
+              });
+            }
+          });
+        }
+      } catch {
+        // Continue silently if Meta leads fetch fails
       }
-      if (u.phoneNumber) {
-        const core = normalizeNumber(u.phoneNumber);
-        const raw = extractRawNumber(u.phoneNumber);
-        if (core) userExtMap[core] = u.fullName;
-        if (raw) userExtMap[raw] = u.fullName;
-      }
-      if (u.email) {
-        userExtMap[u.email.toLowerCase().trim()] = u.fullName;
-      }
-    });
+    }
 
     // Map company DIDs
     const companyDidSet = new Set();
+    const userExtMap = {};
+
     dids.forEach(d => {
       const assignedName = d.assigned_user_id?.fullName || primaryAdminUser?.fullName || 'Company User';
-      const core = normalizeNumber(d.did_number);
-      const raw = extractRawNumber(d.did_number);
-      if (core) {
-        userExtMap[core] = assignedName;
-        companyDidSet.add(core);
+      getPhoneKeys(d.did_number).forEach(k => {
+        companyDidSet.add(k);
+        userExtMap[k] = assignedName;
+      });
+      if (d.did_number) {
+        userExtMap[d.did_number] = assignedName;
+        userExtMap[d.did_number.replace(/\D/g, '')] = assignedName;
       }
-      if (raw) {
-        userExtMap[raw] = assignedName;
-        companyDidSet.add(raw);
+      userExtMap[String(d._id)] = assignedName;
+    });
+
+    // Map extensions / phone numbers / usernames / names to company user names
+    const userNameMap = {};
+    companyUsers.forEach(u => {
+      if (!u.fullName) return;
+      const fName = u.fullName.trim();
+      userNameMap[fName.toLowerCase()] = fName;
+      userExtMap[String(u._id)] = fName;
+
+      if (u.username) {
+        const uName = u.username.trim();
+        userExtMap[uName] = fName;
+        userExtMap[uName.toLowerCase()] = fName;
+        getPhoneKeys(uName).forEach(k => { userExtMap[k] = fName; });
+      }
+      if (u.phoneNumber) {
+        getPhoneKeys(u.phoneNumber).forEach(k => { userExtMap[k] = fName; });
+      }
+      if (u.email) {
+        userExtMap[u.email.toLowerCase().trim()] = fName;
       }
     });
 
@@ -355,21 +496,19 @@ export const getCompanyCallLogs = async (req, res) => {
       if (currentUser.username) {
         userNumbers.add(currentUser.username.trim());
         userNumbers.add(currentUser.username.toLowerCase().trim());
+        getPhoneKeys(currentUser.username).forEach(k => userNumbers.add(k));
       }
       if (currentUser.phoneNumber) {
-        const core = normalizeNumber(currentUser.phoneNumber);
-        const raw = extractRawNumber(currentUser.phoneNumber);
-        if (core) userNumbers.add(core);
-        if (raw) userNumbers.add(raw);
+        getPhoneKeys(currentUser.phoneNumber).forEach(k => userNumbers.add(k));
+      }
+      if (currentUser.email) {
+        userNumbers.add(currentUser.email.toLowerCase().trim());
       }
     }
     dids.forEach(d => {
       const assignedId = d.assigned_user_id?._id || d.assigned_user_id;
       if (assignedId && String(assignedId) === String(userId)) {
-        const core = normalizeNumber(d.did_number);
-        const raw = extractRawNumber(d.did_number);
-        if (core) userNumbers.add(core);
-        if (raw) userNumbers.add(raw);
+        getPhoneKeys(d.did_number).forEach(k => userNumbers.add(k));
       }
     });
 
@@ -377,77 +516,58 @@ export const getCompanyCallLogs = async (req, res) => {
 
     for (const call of allCalls) {
       const callerName = extractCallerName(call.callerid);
-      const callerNum = extractRawNumber(call.callerid);
-      const callerCore = normalizeNumber(call.callerid);
-
-      const destNum = extractRawNumber(call.destination);
-      const destCore = normalizeNumber(call.destination);
-
-      const ext = (call.extension || '').trim();
-      const extCore = normalizeNumber(ext);
-
-      const srcNum = extractRawNumber(call.src);
-      const srcCore = normalizeNumber(call.src);
-
-      const dstNum = extractRawNumber(call.dst);
-      const dstCore = normalizeNumber(call.dst);
-
+      const callerKeys = getPhoneKeys(call.callerid);
+      const destKeys = getPhoneKeys(call.destination);
+      const extKeys = getPhoneKeys(call.extension);
+      const srcKeys = getPhoneKeys(call.src);
+      const dstKeys = getPhoneKeys(call.dst);
       const chanExt = extractChannelEndpoint(call.channel);
       const dstChanExt = extractChannelEndpoint(call.dstchannel);
+
+      const allCallKeys = [
+        ...callerKeys, ...destKeys, ...extKeys, ...srcKeys, ...dstKeys,
+        ...(chanExt ? [chanExt] : []),
+        ...(dstChanExt ? [dstChanExt] : [])
+      ];
 
       // Check if call was made/received by current user
       const isCurrentUserCallerName = callerName && currentUser?.fullName && 
         callerName.toLowerCase() === currentUser.fullName.toLowerCase();
 
       const isUserCall = isCurrentUserCallerName ||
-        [callerCore, callerNum, destCore, destNum, ext, extCore, srcCore, srcNum, dstCore, dstNum, chanExt, dstChanExt]
-          .some(k => k && userNumbers.has(k));
+        allCallKeys.some(k => userNumbers.has(k));
+
+      // Match DID info using helper
+      const matchedDidUser = matchDidInfo(allCallKeys, userExtMap, dids);
+
+      // Match lead name: check destination first (outbound), then callerid (inbound), then dst
+      const leadName = destKeys.map(k => leadMap[k]).find(Boolean) ||
+        callerKeys.map(k => leadMap[k]).find(Boolean) ||
+        dstKeys.map(k => leadMap[k]).find(Boolean) ||
+        null;
 
       // Check if call belongs to this company
-      const isCompanyCall = isUserCall ||
-        [callerCore, callerNum, destCore, destNum, ext, extCore, srcCore, srcNum, dstCore, dstNum, chanExt, dstChanExt]
-          .some(k => k && (companyDidSet.has(k) || userExtMap[k])) ||
-        (callerName && companyUsers.some(u => u.fullName && u.fullName.toLowerCase() === callerName.toLowerCase()));
+      const hasCompanyDid = Boolean(matchedDidUser) || allCallKeys.some(k => companyDidSet.has(k));
+      const hasCompanyUser = allCallKeys.some(k => userExtMap[k]);
+      const matchedUserByName = callerName ? (userNameMap[callerName.toLowerCase()] || companyUsers.find(u => u.fullName && u.fullName.toLowerCase().includes(callerName.toLowerCase()))?.fullName) : null;
 
-      // Role-based filtering:
-      // Non-admins only see calls they made/received
-      if (!isCompanyAdmin && !isUserCall) {
-        continue;
-      }
-      // Company admins see all calls belonging to their company
-      if (isCompanyAdmin && !isCompanyCall && !isUserCall) {
-        continue;
-      }
+      const isCompanyCall = isUserCall || hasCompanyDid || hasCompanyUser || Boolean(matchedUserByName) || (leadName !== null);
 
-      // Check if callerName matches a known company user
-      const matchedUserByName = callerName 
-        ? companyUsers.find(u => u.fullName && u.fullName.toLowerCase() === callerName.toLowerCase())
-        : null;
+      // Filtering: show calls belonging to company or user
+      if (isCompanyAdmin) {
+        if (!isCompanyCall && !isUserCall) continue;
+      } else {
+        if (!isUserCall && !isCompanyCall) continue;
+      }
 
       // Determine user name who made/received call
-      const userName = matchedUserByName?.fullName ||
-        (chanExt && userExtMap[chanExt]) ||
-        (dstChanExt && userExtMap[dstChanExt]) ||
-        (ext && userExtMap[ext]) ||
-        (extCore && userExtMap[extCore]) ||
-        (callerCore && userExtMap[callerCore]) ||
-        (callerNum && userExtMap[callerNum]) ||
-        (srcCore && userExtMap[srcCore]) ||
-        (srcNum && userExtMap[srcNum]) ||
-        (destCore && userExtMap[destCore]) ||
-        (destNum && userExtMap[destNum]) ||
-        (dstCore && userExtMap[dstCore]) ||
-        (dstNum && userExtMap[dstNum]) ||
+      const userName = matchedUserByName ||
+        (isCurrentUserCallerName ? currentUser?.fullName : null) ||
+        matchedDidUser ||
+        allCallKeys.map(k => userExtMap[k]).find(Boolean) ||
         callerName ||
         (isUserCall ? (currentUser?.fullName || 'User') : null) ||
         (isCompanyCall ? (primaryAdminUser?.fullName || 'Company User') : null);
-
-      // Match lead name for this company strictly
-      const leadName = (destCore && leadMap[destCore]) ||
-        (destNum && leadMap[destNum]) ||
-        (callerCore && leadMap[callerCore]) ||
-        (callerNum && leadMap[callerNum]) ||
-        null;
 
       annotatedCalls.push({
         ...call,
@@ -469,7 +589,7 @@ export const getCompanyCallLogs = async (req, res) => {
 
 /**
  * GET /api/v1/telephony/admin/logs
- * Admin-only: returns ALL calls enriched with userName, companyName, companyId.
+ * Admin-only: returns ALL calls enriched with userName, companyName, companyId, leadName.
  * Supports optional query param: ?companyId=<id> to server-side filter by company.
  */
 export const getAdminMasterLogs = async (req, res) => {
@@ -481,9 +601,26 @@ export const getAdminMasterLogs = async (req, res) => {
 
     const filterCompanyId = req.query.companyId || null;
 
-    // 1. Fetch all calls from Asterisk
-    const authRes = await axios.get('http://172.16.17.127/api/api.php?action=GenerateAuthKey&user=apiUAsk&pass=7xK9pQ2mW5vB');
-    if (authRes.data?.status !== 'success') {
+    // 1. Fetch all calls from Asterisk and all DB entities in parallel
+    const [authRes, companies, allDids, allUsers, allLeads] = await Promise.all([
+      axios.get('http://172.16.17.127/api/api.php?action=GenerateAuthKey&user=apiUAsk&pass=7xK9pQ2mW5vB').catch(() => null),
+      Company.find({}, '_id name tenantId').lean(),
+      Did.find({
+        company_id: { $ne: null },
+        is_active: true,
+        released_at: null,
+      }).populate('assigned_user_id', 'fullName email phoneNumber username')
+        .populate('company_id', 'name')
+        .sort({ assigned_at: -1, createdAt: -1 })
+        .lean(),
+      User.find(
+        { portal: 'customer', companyId: { $ne: null } },
+        'fullName email phoneNumber username companyId roleId'
+      ).populate('roleId', 'name').lean(),
+      Lead.find({}, 'fullName phoneE164 email companyId sourcePayload').lean()
+    ]);
+
+    if (authRes?.data?.status !== 'success') {
       return apiError(res, 500, 'Failed to authenticate with call logs provider');
     }
     const token = authRes.data.data.token;
@@ -492,28 +629,21 @@ export const getAdminMasterLogs = async (req, res) => {
     });
     const allCalls = logsRes.data?.data?.recent_calls || [];
 
-    // 2. Load all companies
-    const companies = await Company.find({}, '_id name tenantId').lean();
-
-    // 3. Load all DIDs (with assigned_user_id populated) across all companies
-    const allDids = await Did.find({
-      company_id: { $ne: null },
-      status: 'assigned',
-      is_active: true,
-    }).populate('assigned_user_id', 'fullName email phoneNumber username')
-      .populate('company_id', 'name')
-      .lean();
-
-    // 4. Load all company users
-    const allUsers = await User.find(
-      { portal: 'customer', companyId: { $ne: null } },
-      'fullName email phoneNumber username companyId'
-    ).lean();
-
     // Build company lookup map: companyId (string) → company name
     const companyNameMap = {};
     companies.forEach(c => {
       companyNameMap[String(c._id)] = c.name;
+    });
+
+    // Build lead lookup map for master logs
+    const masterLeadMap = {};
+    allLeads.forEach(l => {
+      const name = l.fullName || (l.sourcePayload?.full_name || l.sourcePayload?.name || '');
+      if (name && l.phoneE164) {
+        getPhoneKeys(l.phoneE164).forEach(k => {
+          if (!masterLeadMap[k]) masterLeadMap[k] = name;
+        });
+      }
     });
 
     // Build DID-based and user-based lookup: identifier → { userName, companyId, companyName }
@@ -530,8 +660,12 @@ export const getAdminMasterLogs = async (req, res) => {
     allDids.forEach(d => {
       const cId = String(d.company_id?._id || d.company_id || '');
       const cName = d.company_id?.name || companyNameMap[cId] || 'Company';
-      const defaultUser = companyUsersMap[cId]?.[0];
-      const userName = d.assigned_user_id?.fullName || defaultUser?.fullName || 'Company User';
+      const cUsers = companyUsersMap[cId] || [];
+      const defaultAdmin = cUsers.find(u => {
+        const r = (u.roleId?.name || '').toLowerCase();
+        return r.includes('admin') || r.includes('super');
+      }) || cUsers[0];
+      const userName = d.assigned_user_id?.fullName || defaultAdmin?.fullName || 'Company User';
 
       const info = {
         userName,
@@ -539,10 +673,14 @@ export const getAdminMasterLogs = async (req, res) => {
         companyName: cName,
       };
 
-      const core = normalizeNumber(d.did_number);
-      const raw = extractRawNumber(d.did_number);
-      if (core) extMap[core] = info;
-      if (raw) extMap[raw] = info;
+      getPhoneKeys(d.did_number).forEach(k => {
+        extMap[k] = info;
+      });
+      if (d.did_number) {
+        extMap[d.did_number] = info;
+        extMap[d.did_number.replace(/\D/g, '')] = info;
+      }
+      extMap[String(d._id)] = info;
     });
 
     // Also map users by their phoneNumber, username, and ID
@@ -553,16 +691,16 @@ export const getAdminMasterLogs = async (req, res) => {
 
       extMap[String(u._id)] = info;
       if (u.phoneNumber) {
-        const core = normalizeNumber(u.phoneNumber);
-        const raw = extractRawNumber(u.phoneNumber);
-        if (core && !extMap[core]) extMap[core] = info;
-        if (raw && !extMap[raw]) extMap[raw] = info;
+        getPhoneKeys(u.phoneNumber).forEach(k => {
+          if (!extMap[k]) extMap[k] = info;
+        });
       }
       if (u.username) {
         const trimmed = u.username.trim();
         if (trimmed && !extMap[trimmed]) extMap[trimmed] = info;
-        const normUser = normalizeNumber(trimmed);
-        if (normUser && !extMap[normUser]) extMap[normUser] = info;
+        getPhoneKeys(trimmed).forEach(k => {
+          if (!extMap[k]) extMap[k] = info;
+        });
       }
     });
 
@@ -583,39 +721,27 @@ export const getAdminMasterLogs = async (req, res) => {
     // 5. Annotate every call
     const annotatedCalls = allCalls.map(call => {
       const callerName = extractCallerName(call.callerid);
-      const callerNum = extractRawNumber(call.callerid);
-      const callerCore = normalizeNumber(call.callerid);
-
-      const destNum = extractRawNumber(call.destination);
-      const destCore = normalizeNumber(call.destination);
-
-      const ext = (call.extension || '').trim();
-      const extCore = normalizeNumber(ext);
-
-      const srcNum = extractRawNumber(call.src);
-      const srcCore = normalizeNumber(call.src);
-
-      const dstNum = extractRawNumber(call.dst);
-      const dstCore = normalizeNumber(call.dst);
-
+      const callerKeys = getPhoneKeys(call.callerid);
+      const destKeys = getPhoneKeys(call.destination);
+      const extKeys = getPhoneKeys(call.extension);
+      const srcKeys = getPhoneKeys(call.src);
+      const dstKeys = getPhoneKeys(call.dst);
       const chanExt = extractChannelEndpoint(call.channel);
       const dstChanExt = extractChannelEndpoint(call.dstchannel);
 
-      const nameMatch = callerName ? nameMap[callerName.toLowerCase().trim()] : null;
+      const allCallKeys = [
+        ...callerKeys, ...destKeys, ...extKeys, ...srcKeys, ...dstKeys,
+        ...(chanExt ? [chanExt] : []),
+        ...(dstChanExt ? [dstChanExt] : [])
+      ];
 
-      const match = nameMatch ||
-        (chanExt && extMap[chanExt]) ||
-        (dstChanExt && extMap[dstChanExt]) ||
-        (ext && extMap[ext]) ||
-        (extCore && extMap[extCore]) ||
-        (callerCore && extMap[callerCore]) ||
-        (callerNum && extMap[callerNum]) ||
-        (srcCore && extMap[srcCore]) ||
-        (srcNum && extMap[srcNum]) ||
-        (destCore && extMap[destCore]) ||
-        (destNum && extMap[destNum]) ||
-        (dstCore && extMap[dstCore]) ||
-        (dstNum && extMap[dstNum]) ||
+      const nameMatch = callerName ? nameMap[callerName.toLowerCase().trim()] : null;
+      const keyMatch = matchDidInfo(allCallKeys, extMap, allDids) || allCallKeys.map(k => extMap[k]).find(Boolean);
+      const match = nameMatch || keyMatch || null;
+
+      const leadName = destKeys.map(k => masterLeadMap[k]).find(Boolean) ||
+        callerKeys.map(k => masterLeadMap[k]).find(Boolean) ||
+        dstKeys.map(k => masterLeadMap[k]).find(Boolean) ||
         null;
 
       const annotated = {
@@ -623,6 +749,7 @@ export const getAdminMasterLogs = async (req, res) => {
         userName: match?.userName || callerName || null,
         companyId: match?.companyId || null,
         companyName: match?.companyName || null,
+        leadName,
       };
       return annotated;
     });
