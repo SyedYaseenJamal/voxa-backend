@@ -1044,13 +1044,16 @@ export const postCallAgent = [
   requireAri,
   wrap(async (req, res) => {
     const endpoint = requireEndpoint(req.body?.endpoint);
-    const callerId = cleanCallerId(req.body?.callerId);
+    const agentName = cleanTag(req.body?.agentName || req.user?.fullName, 'agentName');
+    const callerId = cleanCallerId(req.body?.callerId) || (agentName ? `"${agentName}" <${endpoint}>` : undefined);
     const result = await ari('POST', '/ari/channels',
       { endpoint: `PJSIP/${endpoint}`, app: CONFIG.ARI_APP, appArgs: 'agent', callerId },
       { variables: compactVars({
-          company_id: cleanTag(req.body?.companyId, 'companyId'),
-          agent_id:   cleanTag(req.body?.agentId,   'agentId'),
-          lead_id:    cleanTag(req.body?.leadId,     'leadId'),
+          company_id: cleanTag(req.body?.companyId || req.user?.companyId, 'companyId'),
+          agent_id:   cleanTag(req.body?.agentId || req.user?.userId,       'agentId'),
+          agent_name: agentName,
+          user_name:  agentName,
+          lead_id:    cleanTag(req.body?.leadId,                            'leadId'),
           caller_id:  callerId
         })
       }
@@ -1080,10 +1083,14 @@ export const postCallPstn = [
   wrap(async (req, res) => {
     if (!req.body?.to) throw badRequest('to (destination number) is required');
     const e164 = toE164(req.body.to);
+    const agentName = cleanTag(req.body?.agentName || req.user?.fullName, 'agentName');
     const vars = compactVars({
-      company_id:  cleanTag(req.body?.companyId,  'companyId'),
-      lead_id:     cleanTag(req.body?.leadId,      'leadId'),
-      campaign_id: cleanTag(req.body?.campaignId,  'campaignId'),
+      company_id:  cleanTag(req.body?.companyId || req.user?.companyId, 'companyId'),
+      agent_id:    cleanTag(req.body?.agentId || req.user?.userId,       'agentId'),
+      agent_name:  agentName,
+      user_name:   agentName,
+      lead_id:     cleanTag(req.body?.leadId,                            'leadId'),
+      campaign_id: cleanTag(req.body?.campaignId,                        'campaignId'),
       destination: e164
     });
     // caller_id (from DID dropdown) takes precedence, then pstnCallerId, then global default
@@ -1120,9 +1127,10 @@ export const postCallPstn = [
       });
     }
 
+    const legACallerId = cleanCallerId(req.body?.callerId) || (agentName ? `"${agentName}" <${agentExtension}>` : undefined);
     const call = await startPstnCall({
       e164, agentExtension,
-      callerId: cleanCallerId(req.body?.callerId),
+      callerId: legACallerId,
       pstnCallerId, vars
     });
     return res.status(202).json({

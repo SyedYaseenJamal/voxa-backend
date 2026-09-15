@@ -195,8 +195,66 @@ export const summarizeCall = async (req, res) => {
   }
 };
 
+// ── Helper functions for robust Asterisk CDR identifier extraction ─────────
+
+const IGNORED_CALLER_NAMES = new Set([
+  'unknown', 'anonymous', 'unavailable', 'none', 'undefined', 'null', 'asterisk', 'default'
+]);
+
+function extractCallerName(callerIdStr) {
+  if (!callerIdStr || typeof callerIdStr !== 'string') return null;
+  const trimmed = callerIdStr.trim();
+  if (!trimmed) return null;
+
+  // Pattern 1: "Display Name" <1002> or 'Display Name' <+92300...> or Display Name <1002>
+  const matchWithAngle = trimmed.match(/^["']?([^<"']+)["']?\s*<.*>$/);
+  if (matchWithAngle && matchWithAngle[1]) {
+    const candidate = matchWithAngle[1].trim();
+    if (candidate && !/^\+?\d+$/.test(candidate)) {
+      if (!IGNORED_CALLER_NAMES.has(candidate.toLowerCase())) {
+        return candidate;
+      }
+    }
+  }
+
+  // Pattern 2: Pure text name without angles or numbers (e.g. "John Doe", "Super Admin")
+  if (!/[<>]/.test(trimmed) && !/^\+?\d{4,}$/.test(trimmed) && /[a-zA-Z]/.test(trimmed)) {
+    const clean = trimmed.replace(/["']/g, '').trim();
+    if (clean && !IGNORED_CALLER_NAMES.has(clean.toLowerCase())) {
+      return clean;
+    }
+  }
+
+  return null;
+}
+
+function extractChannelEndpoint(channelStr) {
+  if (!channelStr || typeof channelStr !== 'string') return null;
+  // Matches PJSIP/1002-0000001a or SIP/agent1-0000001a or DAHDI/1-1 etc.
+  const match = channelStr.match(/^(?:PJSIP|SIP|DAHDI|IAX2|Local)\/([^-/@]+)/i);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return null;
+}
+
+function normalizeNumber(num) {
+  if (!num) return '';
+  const str = String(num).trim();
+  const angleMatch = str.match(/<([^>]+)>/);
+  const target = angleMatch ? angleMatch[1] : str;
+  return target.replace(/\D/g, '').slice(-10);
+}
+
+function extractRawNumber(num) {
+  if (!num) return '';
+  const str = String(num).trim();
+  const angleMatch = str.match(/<([^>]+)>/);
+  const raw = angleMatch ? angleMatch[1] : str;
+  return raw.replace(/["'\s]/g, '').trim();
+}
+
 /**
- * GET /api/v1/telephony/company/logs
  * Returns company call logs with role-based filtering, user tracking, and company-segregated lead matching.
  */
 export const getCompanyCallLogs = async (req, res) => {
@@ -230,66 +288,166 @@ export const getCompanyCallLogs = async (req, res) => {
     const allCalls = logsRes.data?.data?.recent_calls || [];
 
     // 3. Fetch DIDs, Users & Leads strictly for THIS company
-    const [dids, companyUsers, leads] = await Promise.all([
-      Did.find({ company_id: companyId }).populate('assigned_user_id', 'fullName email phoneNumber'),
-      User.find({ companyId }),
-      Lead.find({ companyId }, 'fullName phoneE164 email')
+    const [dids, companyUsers, leads, companyDoc] = await Promise.all([
+      Did.find({ company_id: companyId }).populate('assigned_user_id', 'fullName email phoneNumber username'),
+      User.find({ companyId }, 'fullName email phoneNumber username roleId').populate('roleId', 'name'),
+      Lead.find({ companyId }, 'fullName phoneE164 email'),
+      Company.findById(companyId, 'name tenant')
     ]);
 
-    const normalize = (num) => (num || '').replace(/\D/g, '').slice(-10);
+    // Find primary admin user as fallback for company-level calls
+    const primaryAdminUser = companyUsers.find(u => {
+      const r = (u.roleId?.name || '').toLowerCase();
+      return r.includes('super') || r.includes('admin');
+    }) || companyUsers[0] || currentUser;
 
     // Map leads strictly for this company by normalized phone number
     const leadMap = {};
     leads.forEach(l => {
-      const core = normalize(l.phoneE164);
-      if (core && l.fullName) {
-        leadMap[core] = l.fullName;
-      }
+      const core = normalizeNumber(l.phoneE164);
+      const raw = extractRawNumber(l.phoneE164);
+      if (core && l.fullName) leadMap[core] = l.fullName;
+      if (raw && l.fullName) leadMap[raw] = l.fullName;
     });
 
-    // Map extensions / DIDs / phone numbers to company user names
+    // Map extensions / DIDs / phone numbers / usernames to company user names
     const userExtMap = {};
     companyUsers.forEach(u => {
-      if (u.phoneNumber) userExtMap[normalize(u.phoneNumber)] = u.fullName;
-      if (u.username) userExtMap[u.username] = u.fullName;
-    });
-    dids.forEach(d => {
-      if (d.assigned_user_id?.fullName) {
-        const core = normalize(d.did_number);
-        if (core) userExtMap[core] = d.assigned_user_id.fullName;
+      if (!u.fullName) return;
+      userExtMap[String(u._id)] = u.fullName;
+      if (u.username) {
+        userExtMap[u.username.trim()] = u.fullName;
+        userExtMap[u.username.toLowerCase().trim()] = u.fullName;
+        const normUser = normalizeNumber(u.username);
+        if (normUser) userExtMap[normUser] = u.fullName;
+      }
+      if (u.phoneNumber) {
+        const core = normalizeNumber(u.phoneNumber);
+        const raw = extractRawNumber(u.phoneNumber);
+        if (core) userExtMap[core] = u.fullName;
+        if (raw) userExtMap[raw] = u.fullName;
+      }
+      if (u.email) {
+        userExtMap[u.email.toLowerCase().trim()] = u.fullName;
       }
     });
 
-    // Determine numbers/extensions assigned to current user
+    // Map company DIDs
+    const companyDidSet = new Set();
+    dids.forEach(d => {
+      const assignedName = d.assigned_user_id?.fullName || primaryAdminUser?.fullName || 'Company User';
+      const core = normalizeNumber(d.did_number);
+      const raw = extractRawNumber(d.did_number);
+      if (core) {
+        userExtMap[core] = assignedName;
+        companyDidSet.add(core);
+      }
+      if (raw) {
+        userExtMap[raw] = assignedName;
+        companyDidSet.add(raw);
+      }
+    });
+
+    // Determine numbers/extensions assigned strictly to current user
     const userNumbers = new Set();
-    if (currentUser?.phoneNumber) userNumbers.add(normalize(currentUser.phoneNumber));
-    if (currentUser?.username) userNumbers.add(currentUser.username);
+    if (currentUser) {
+      userNumbers.add(String(currentUser._id));
+      if (currentUser.username) {
+        userNumbers.add(currentUser.username.trim());
+        userNumbers.add(currentUser.username.toLowerCase().trim());
+      }
+      if (currentUser.phoneNumber) {
+        const core = normalizeNumber(currentUser.phoneNumber);
+        const raw = extractRawNumber(currentUser.phoneNumber);
+        if (core) userNumbers.add(core);
+        if (raw) userNumbers.add(raw);
+      }
+    }
     dids.forEach(d => {
       const assignedId = d.assigned_user_id?._id || d.assigned_user_id;
       if (assignedId && String(assignedId) === String(userId)) {
-        userNumbers.add(normalize(d.did_number));
+        const core = normalizeNumber(d.did_number);
+        const raw = extractRawNumber(d.did_number);
+        if (core) userNumbers.add(core);
+        if (raw) userNumbers.add(raw);
       }
     });
 
     const annotatedCalls = [];
 
     for (const call of allCalls) {
-      const callerCore = normalize(call.callerid);
-      const destCore = normalize(call.destination);
-      const ext = call.extension || '';
+      const callerName = extractCallerName(call.callerid);
+      const callerNum = extractRawNumber(call.callerid);
+      const callerCore = normalizeNumber(call.callerid);
 
-      const isUserCall = userNumbers.has(callerCore) || userNumbers.has(destCore) || userNumbers.has(ext);
+      const destNum = extractRawNumber(call.destination);
+      const destCore = normalizeNumber(call.destination);
 
-      // Role-based filtering: non-admins can only see calls they made/received
+      const ext = (call.extension || '').trim();
+      const extCore = normalizeNumber(ext);
+
+      const srcNum = extractRawNumber(call.src);
+      const srcCore = normalizeNumber(call.src);
+
+      const dstNum = extractRawNumber(call.dst);
+      const dstCore = normalizeNumber(call.dst);
+
+      const chanExt = extractChannelEndpoint(call.channel);
+      const dstChanExt = extractChannelEndpoint(call.dstchannel);
+
+      // Check if call was made/received by current user
+      const isCurrentUserCallerName = callerName && currentUser?.fullName && 
+        callerName.toLowerCase() === currentUser.fullName.toLowerCase();
+
+      const isUserCall = isCurrentUserCallerName ||
+        [callerCore, callerNum, destCore, destNum, ext, extCore, srcCore, srcNum, dstCore, dstNum, chanExt, dstChanExt]
+          .some(k => k && userNumbers.has(k));
+
+      // Check if call belongs to this company
+      const isCompanyCall = isUserCall ||
+        [callerCore, callerNum, destCore, destNum, ext, extCore, srcCore, srcNum, dstCore, dstNum, chanExt, dstChanExt]
+          .some(k => k && (companyDidSet.has(k) || userExtMap[k])) ||
+        (callerName && companyUsers.some(u => u.fullName && u.fullName.toLowerCase() === callerName.toLowerCase()));
+
+      // Role-based filtering:
+      // Non-admins only see calls they made/received
       if (!isCompanyAdmin && !isUserCall) {
         continue;
       }
+      // Company admins see all calls belonging to their company
+      if (isCompanyAdmin && !isCompanyCall && !isUserCall) {
+        continue;
+      }
+
+      // Check if callerName matches a known company user
+      const matchedUserByName = callerName 
+        ? companyUsers.find(u => u.fullName && u.fullName.toLowerCase() === callerName.toLowerCase())
+        : null;
 
       // Determine user name who made/received call
-      const userName = userExtMap[ext] || userExtMap[callerCore] || userExtMap[destCore] || (isUserCall ? currentUser.fullName : null);
+      const userName = matchedUserByName?.fullName ||
+        (chanExt && userExtMap[chanExt]) ||
+        (dstChanExt && userExtMap[dstChanExt]) ||
+        (ext && userExtMap[ext]) ||
+        (extCore && userExtMap[extCore]) ||
+        (callerCore && userExtMap[callerCore]) ||
+        (callerNum && userExtMap[callerNum]) ||
+        (srcCore && userExtMap[srcCore]) ||
+        (srcNum && userExtMap[srcNum]) ||
+        (destCore && userExtMap[destCore]) ||
+        (destNum && userExtMap[destNum]) ||
+        (dstCore && userExtMap[dstCore]) ||
+        (dstNum && userExtMap[dstNum]) ||
+        callerName ||
+        (isUserCall ? (currentUser?.fullName || 'User') : null) ||
+        (isCompanyCall ? (primaryAdminUser?.fullName || 'Company User') : null);
 
       // Match lead name for this company strictly
-      const leadName = leadMap[destCore] || leadMap[callerCore] || null;
+      const leadName = (destCore && leadMap[destCore]) ||
+        (destNum && leadMap[destNum]) ||
+        (callerCore && leadMap[callerCore]) ||
+        (callerNum && leadMap[callerNum]) ||
+        null;
 
       annotatedCalls.push({
         ...call,
@@ -352,62 +510,117 @@ export const getAdminMasterLogs = async (req, res) => {
       'fullName email phoneNumber username companyId'
     ).lean();
 
-    const normalize = (num) => (num || '').replace(/\D/g, '').slice(-10);
-
     // Build company lookup map: companyId (string) → company name
     const companyNameMap = {};
     companies.forEach(c => {
       companyNameMap[String(c._id)] = c.name;
     });
 
-    // Build DID-based lookup: extension/phone → { userName, companyId, companyName }
-    // Keyed by normalized phone number of the DID
+    // Build DID-based and user-based lookup: identifier → { userName, companyId, companyName }
     const extMap = {};
 
+    // Group users by company to find default company admin
+    const companyUsersMap = {};
+    allUsers.forEach(u => {
+      const cId = String(u.companyId || '');
+      if (!companyUsersMap[cId]) companyUsersMap[cId] = [];
+      companyUsersMap[cId].push(u);
+    });
+
     allDids.forEach(d => {
-      if (!d.assigned_user_id?.fullName) return;
       const cId = String(d.company_id?._id || d.company_id || '');
-      const cName = d.company_id?.name || companyNameMap[cId] || 'Unknown Company';
-      const core = normalize(d.did_number);
-      if (core) {
-        extMap[core] = {
-          userName: d.assigned_user_id.fullName,
-          companyId: cId,
-          companyName: cName,
-        };
+      const cName = d.company_id?.name || companyNameMap[cId] || 'Company';
+      const defaultUser = companyUsersMap[cId]?.[0];
+      const userName = d.assigned_user_id?.fullName || defaultUser?.fullName || 'Company User';
+
+      const info = {
+        userName,
+        companyId: cId,
+        companyName: cName,
+      };
+
+      const core = normalizeNumber(d.did_number);
+      const raw = extractRawNumber(d.did_number);
+      if (core) extMap[core] = info;
+      if (raw) extMap[raw] = info;
+    });
+
+    // Also map users by their phoneNumber, username, and ID
+    allUsers.forEach(u => {
+      const cId = String(u.companyId || '');
+      const cName = companyNameMap[cId] || 'Company';
+      const info = { userName: u.fullName, companyId: cId, companyName: cName };
+
+      extMap[String(u._id)] = info;
+      if (u.phoneNumber) {
+        const core = normalizeNumber(u.phoneNumber);
+        const raw = extractRawNumber(u.phoneNumber);
+        if (core && !extMap[core]) extMap[core] = info;
+        if (raw && !extMap[raw]) extMap[raw] = info;
       }
-      // Also key by the full DID number in case normalize strips too much
-      const raw = (d.did_number || '').trim();
-      if (raw && raw !== core) {
-        extMap[raw] = extMap[core];
+      if (u.username) {
+        const trimmed = u.username.trim();
+        if (trimmed && !extMap[trimmed]) extMap[trimmed] = info;
+        const normUser = normalizeNumber(trimmed);
+        if (normUser && !extMap[normUser]) extMap[normUser] = info;
       }
     });
 
-    // Also map users by their phoneNumber and username (extension)
+    // Map user full names for direct name lookup
+    const nameMap = {};
     allUsers.forEach(u => {
-      const cId = String(u.companyId || '');
-      const cName = companyNameMap[cId] || 'Unknown Company';
-      const info = { userName: u.fullName, companyId: cId, companyName: cName };
-      if (u.phoneNumber) {
-        const core = normalize(u.phoneNumber);
-        if (core && !extMap[core]) extMap[core] = info;
-      }
-      if (u.username) {
-        if (!extMap[u.username]) extMap[u.username] = info;
+      if (u.fullName) {
+        const cId = String(u.companyId || '');
+        const cName = companyNameMap[cId] || 'Company';
+        nameMap[u.fullName.toLowerCase().trim()] = {
+          userName: u.fullName,
+          companyId: cId,
+          companyName: cName
+        };
       }
     });
 
     // 5. Annotate every call
     const annotatedCalls = allCalls.map(call => {
-      const callerCore = normalize(call.callerid);
-      const destCore = normalize(call.destination);
-      const ext = call.extension || '';
+      const callerName = extractCallerName(call.callerid);
+      const callerNum = extractRawNumber(call.callerid);
+      const callerCore = normalizeNumber(call.callerid);
 
-      const match = extMap[ext] || extMap[callerCore] || extMap[destCore] || null;
+      const destNum = extractRawNumber(call.destination);
+      const destCore = normalizeNumber(call.destination);
+
+      const ext = (call.extension || '').trim();
+      const extCore = normalizeNumber(ext);
+
+      const srcNum = extractRawNumber(call.src);
+      const srcCore = normalizeNumber(call.src);
+
+      const dstNum = extractRawNumber(call.dst);
+      const dstCore = normalizeNumber(call.dst);
+
+      const chanExt = extractChannelEndpoint(call.channel);
+      const dstChanExt = extractChannelEndpoint(call.dstchannel);
+
+      const nameMatch = callerName ? nameMap[callerName.toLowerCase().trim()] : null;
+
+      const match = nameMatch ||
+        (chanExt && extMap[chanExt]) ||
+        (dstChanExt && extMap[dstChanExt]) ||
+        (ext && extMap[ext]) ||
+        (extCore && extMap[extCore]) ||
+        (callerCore && extMap[callerCore]) ||
+        (callerNum && extMap[callerNum]) ||
+        (srcCore && extMap[srcCore]) ||
+        (srcNum && extMap[srcNum]) ||
+        (destCore && extMap[destCore]) ||
+        (destNum && extMap[destNum]) ||
+        (dstCore && extMap[dstCore]) ||
+        (dstNum && extMap[dstNum]) ||
+        null;
 
       const annotated = {
         ...call,
-        userName: match?.userName || null,
+        userName: match?.userName || callerName || null,
         companyId: match?.companyId || null,
         companyName: match?.companyName || null,
       };
