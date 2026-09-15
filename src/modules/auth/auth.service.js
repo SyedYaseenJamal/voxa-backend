@@ -1,6 +1,6 @@
 import User from './auth.model.js';
 import { hashPassword, comparePassword } from '../../utils/bcrypt.js';
-import { generateAccessToken, generateRefreshToken } from '../../utils/jwt.js';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
 import AppError from '../../utils/AppError.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -61,7 +61,19 @@ export const loginUser = async (email, password, portal) => {
 
 export const refreshAuthToken = async (token) => {
   if (!token) throw new AppError('Refresh token required', 401);
-  const user = await User.findOne({ refreshToken: token }).populate('roleId');
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(token);
+  } catch (err) {
+    throw new AppError('Invalid or expired refresh token', 401);
+  }
+
+  let user = await User.findOne({ refreshToken: token }).populate('roleId');
+  if (!user && payload?.userId) {
+    user = await User.findById(payload.userId).populate('roleId');
+  }
+
   if (!user) throw new AppError('Invalid refresh token', 401);
   if (!user.isActive || user.status !== 'active') throw new AppError('Account is inactive', 403);
 
@@ -73,7 +85,7 @@ export const refreshAuthToken = async (token) => {
     if (company) businessType = company.businessType;
   }
 
-  const payload = {
+  const newPayload = {
     userId: user._id,
     portal: user.portal,
     companyId: user.companyId,
@@ -81,8 +93,8 @@ export const refreshAuthToken = async (token) => {
     roleId: user.roleId ? user.roleId._id : null,
     permissions
   };
-  const newAccessToken = generateAccessToken(payload);
-  const newRefreshToken = generateRefreshToken(payload);
+  const newAccessToken = generateAccessToken(newPayload);
+  const newRefreshToken = generateRefreshToken(newPayload);
 
   user.refreshToken = newRefreshToken;
   await user.save();

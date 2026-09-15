@@ -16,6 +16,26 @@ import {
   getAdminOverview,
   getAdminCompanyIntegrations
 } from './integration.controller.js';
+import {
+  getCampaigns,
+  getCampaignById,
+  createCampaign,
+  updateCampaign,
+  deleteCampaign,
+  getAdSets,
+  createAdSet,
+  updateAdSet,
+  deleteAdSet,
+  uploadCreativeImage,
+  uploadAdImageMulter,
+  createAdCreative,
+  getAdCreatives,
+  deleteAdCreative,
+  getAds,
+  createAd,
+  updateAd,
+  deleteAd
+} from './campaigns.controller.js';
 
 const router = Router();
 
@@ -45,6 +65,28 @@ router.get('/meta/forms/:formId/leads', protect, getLeadsByFormId);
 router.get('/messages', protect, getMessages);
 router.get('/messages/:psid', protect, getMessagesByPsid);
 router.post('/messages/send', protect, sendMessengerMessage);
+
+// ─── META CAMPAIGNS ROUTES (CAMPAIGNS_API.md) ───────────────────────────
+router.get('/campaigns', protect, getCampaigns);
+router.post('/campaigns/create', protect, createCampaign);
+router.get('/campaigns/:id', protect, getCampaignById);
+router.patch('/campaigns/:id', protect, updateCampaign);
+router.delete('/campaigns/:id', protect, deleteCampaign);
+
+router.get('/adsets', protect, getAdSets);
+router.post('/adsets/create', protect, createAdSet);
+router.patch('/adsets/:id', protect, updateAdSet);
+router.delete('/adsets/:id', protect, deleteAdSet);
+
+router.post('/adcreatives/upload-image', protect, uploadAdImageMulter.single('image'), uploadCreativeImage);
+router.post('/adcreatives/create', protect, createAdCreative);
+router.get('/adcreatives', protect, getAdCreatives);
+router.delete('/adcreatives/:id', protect, deleteAdCreative);
+
+router.get('/ads', protect, getAds);
+router.post('/ads/create', protect, createAd);
+router.patch('/ads/:id', protect, updateAd);
+router.delete('/ads/:id', protect, deleteAd);
 
 export default router;
 

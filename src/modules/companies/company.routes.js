@@ -35,7 +35,7 @@ router.use(protect, requireAdminPortal);
  * @swagger
  * /companies/next-tenant-id:
  *   get:
- *     summary: Get auto-generated next tenant ID (Voxa-tenant-001 format)
+ *     summary: Get auto-generated next tenant ID (T-0001 format)
  *     tags: [Companies]
  *     security:
  *       - BearerAuth: []

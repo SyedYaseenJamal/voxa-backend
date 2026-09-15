@@ -12,14 +12,14 @@ import bcrypt from 'bcryptjs';
 
 export const getNextTenantId = async () => {
   const tenants = await TenantInfo.find(
-    { tenant_id: { $regex: /^Voxa-tenant-\d+$/i } },
+    {},
     { tenant_id: 1 }
   ).lean();
 
   let maxNum = 0;
   for (const t of tenants) {
     if (!t.tenant_id) continue;
-    const match = t.tenant_id.match(/^Voxa-tenant-(\d+)$/i);
+    const match = t.tenant_id.match(/^(?:T|Voxa-tenant)-?(\d+)$/i);
     if (match && match[1]) {
       const num = parseInt(match[1], 10);
       if (num > maxNum) maxNum = num;
@@ -27,8 +27,8 @@ export const getNextTenantId = async () => {
   }
 
   const nextNum = maxNum + 1;
-  const paddedNum = String(nextNum).padStart(3, '0');
-  return `Voxa-tenant-${paddedNum}`;
+  const paddedNum = String(nextNum).padStart(4, '0');
+  return `T-${paddedNum}`;
 };
 
 export const createCompany = async (companyData, adminEmail, adminFullName, tenantData, planId, createdBy) => {
@@ -38,11 +38,14 @@ export const createCompany = async (companyData, adminEmail, adminFullName, tena
   const plan = await Plan.findById(planId);
   if (!plan) throw new AppError('Plan not found', 404);
 
-  // Automatically generate tenant_id in format Voxa-tenant-001 (incremented only on successful creation)
+  // Automatically generate tenant_id in format T-0001 (incremented sequentially on successful creation)
   const autoTenantId = await getNextTenantId();
-  const finalTenantId = (tenantData?.tenant_id && tenantData.tenant_id.trim() && tenantData.tenant_id !== 'TENANT-123') 
-    ? tenantData.tenant_id.trim() 
-    : autoTenantId;
+  const isAutoOrPlaceholder = !tenantData?.tenant_id || 
+    tenantData.tenant_id === 'TENANT-123' || 
+    /^Voxa-tenant-\d+$/i.test(tenantData.tenant_id.trim()) ||
+    /^T-\d+$/i.test(tenantData.tenant_id.trim());
+
+  const finalTenantId = isAutoOrPlaceholder ? autoTenantId : tenantData.tenant_id.trim();
 
   // 1. Create Company
   const company = await Company.create({ ...companyData, createdBy });

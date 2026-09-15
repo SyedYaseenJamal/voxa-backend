@@ -61,9 +61,25 @@ app.use('/api/v1/dids', didRoutes);
 app.use('/api/v1/ai-agents', aiAgentRoutes);
 app.use('/api/v1/telephony', telephonyRoutes);
 
-// Root aliases matching MESSENGER_API.md spec (/api/messages and /webhook)
+// Root aliases matching MESSENGER_API.md and CAMPAIGNS_API.md specs
 app.use('/api/messages', (req, res, next) => {
   req.url = '/messages' + req.url;
+  return integrationRoutes(req, res, next);
+});
+app.use('/api/campaigns', (req, res, next) => {
+  req.url = '/campaigns' + req.url;
+  return integrationRoutes(req, res, next);
+});
+app.use('/api/adsets', (req, res, next) => {
+  req.url = '/adsets' + req.url;
+  return integrationRoutes(req, res, next);
+});
+app.use('/api/adcreatives', (req, res, next) => {
+  req.url = '/adcreatives' + req.url;
+  return integrationRoutes(req, res, next);
+});
+app.use('/api/ads', (req, res, next) => {
+  req.url = '/ads' + req.url;
   return integrationRoutes(req, res, next);
 });
 app.use('/webhook', (req, res, next) => {
