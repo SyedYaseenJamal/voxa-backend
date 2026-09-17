@@ -35,55 +35,55 @@ const envInt = (key, fallback) => {
 };
 
 export const CONFIG = {
-  ASTERISK_HOST:    env('ASTERISK_HOST',    '172.16.17.127'),
-  ARI_PORT:         envInt('ARI_PORT',       8089),
-  ARI_USER:         env('ARI_USER',          'voxa_ari_user'),
-  ARI_PASS:         env('ARI_PASS',          'ChooseSecurePassword123!'),
-  ARI_APP:          env('ARI_APP',           'voxa-ai-stasis'),
-  ARI_TIMEOUT_MS:   envInt('ARI_TIMEOUT_MS', 10000),
+  ASTERISK_HOST: env('ASTERISK_HOST', '172.16.17.127'),
+  ARI_PORT: envInt('ARI_PORT', 8089),
+  ARI_USER: env('ARI_USER', 'voxa_ari_user'),
+  ARI_PASS: env('ARI_PASS', 'ChooseSecurePassword123!'),
+  ARI_APP: env('ARI_APP', 'voxa-ai-stasis'),
+  ARI_TIMEOUT_MS: envInt('ARI_TIMEOUT_MS', 10000),
 
-  AMI_PORT:         envInt('AMI_PORT',       5038),
-  AMI_USER:         env('AMI_USER',          'voxa_ami_user'),
-  AMI_PASS:         env('AMI_PASS',          'ChooseSecurePassword123!'),
-  AMI_TIMEOUT_MS:   envInt('AMI_TIMEOUT_MS', 10000),
+  AMI_PORT: envInt('AMI_PORT', 5038),
+  AMI_USER: env('AMI_USER', 'voxa_ami_user'),
+  AMI_PASS: env('AMI_PASS', 'ChooseSecurePassword123!'),
+  AMI_TIMEOUT_MS: envInt('AMI_TIMEOUT_MS', 10000),
 
-  PTCL_TRUNK:       env('PTCL_TRUNK',        'PTCL'),
-  AGENT_EXTENSION:  env('AGENT_EXTENSION',   '1002'),
-  PSTN_CALLER_ID:   env('PSTN_CALLER_ID',    '1002'),
-  OUTBOUND_CONTEXT: env('OUTBOUND_CONTEXT',  'outgoing-ptcl'),
-  CALLBACK_CONTEXT: env('CALLBACK_CONTEXT',  'voxa-stasis'),
-  PSTN_ROUTE:       env('PSTN_ROUTE',        'local'),
-  LOCAL_DIAL_FORMAT:env('LOCAL_DIAL_FORMAT', 'national'),
-  LOCAL_NO_OPTIMIZE:envBool('LOCAL_NO_OPTIMIZE', true),
-  PSTN_FLOW:        env('PSTN_FLOW',         'direct'),
+  PTCL_TRUNK: env('PTCL_TRUNK', 'PTCL'),
+  AGENT_EXTENSION: env('AGENT_EXTENSION', '1002'),
+  PSTN_CALLER_ID: env('PSTN_CALLER_ID', '1002'),
+  OUTBOUND_CONTEXT: env('OUTBOUND_CONTEXT', 'outgoing-ptcl'),
+  CALLBACK_CONTEXT: env('CALLBACK_CONTEXT', 'voxa-stasis'),
+  PSTN_ROUTE: env('PSTN_ROUTE', 'local'),
+  LOCAL_DIAL_FORMAT: env('LOCAL_DIAL_FORMAT', 'national'),
+  LOCAL_NO_OPTIMIZE: envBool('LOCAL_NO_OPTIMIZE', true),
+  PSTN_FLOW: env('PSTN_FLOW', 'direct'),
   AGENT_RING_TIMEOUT: envInt('AGENT_RING_TIMEOUT', 30),
-  PSTN_RING_TIMEOUT:  envInt('PSTN_RING_TIMEOUT',  60),
-  COUNTRY_CODE:     env('COUNTRY_CODE',      '92'),
+  PSTN_RING_TIMEOUT: envInt('PSTN_RING_TIMEOUT', 60),
+  COUNTRY_CODE: env('COUNTRY_CODE', '92'),
 
-  TLS_VERIFY:       envBool('ASTERISK_TLS_VERIFY', false),
-  TLS_CA_FILE:      env('ASTERISK_TLS_CA_FILE', ''),
+  TLS_VERIFY: envBool('ASTERISK_TLS_VERIFY', false),
+  TLS_CA_FILE: env('ASTERISK_TLS_CA_FILE', ''),
 
-  WEBRTC_AGENT:     envBool('WEBRTC_AGENT', true),
-  SIP_WS_HOST:      env('SIP_WS_HOST',      ''),
-  SIP_EXTENSION:    env('SIP_EXTENSION',     '1002'),
-  SIP_PASSWORD:     env('SIP_PASSWORD',      'WebRtc1002@Secure2026'),
+  WEBRTC_AGENT: envBool('WEBRTC_AGENT', true),
+  SIP_WS_HOST: env('SIP_WS_HOST', ''),
+  SIP_EXTENSION: env('SIP_EXTENSION', '1002'),
+  SIP_PASSWORD: env('SIP_PASSWORD', 'WebRtc1002@Secure2026'),
   SIP_DISPLAY_NAME: env('SIP_DISPLAY_NAME', 'Agent 1002'),
 
-  CORS_ORIGIN:      env('CORS_ORIGIN',       ''),
+  CORS_ORIGIN: env('CORS_ORIGIN', ''),
 };
 
-CONFIG.ARI_BASE    = `https://${CONFIG.ASTERISK_HOST}:${CONFIG.ARI_PORT}`;
-CONFIG.ARI_WS_URL  = env('ARI_WS_URL',  `wss://${CONFIG.ASTERISK_HOST}:${CONFIG.ARI_PORT}/ari/events`);
-CONFIG.WSS_URL     = env('WSS_URL',     `wss://${CONFIG.ASTERISK_HOST}:${CONFIG.ARI_PORT}/ws`);
+CONFIG.ARI_BASE = `https://${CONFIG.ASTERISK_HOST}:${CONFIG.ARI_PORT}`;
+CONFIG.ARI_WS_URL = env('ARI_WS_URL', `wss://${CONFIG.ASTERISK_HOST}:${CONFIG.ARI_PORT}/ari/events`);
+CONFIG.WSS_URL = env('WSS_URL', `wss://${CONFIG.ASTERISK_HOST}:${CONFIG.ARI_PORT}/ws`);
 CONFIG.BROWSER_WSS_URL = env(
   'BROWSER_WSS_URL',
   `wss://${CONFIG.SIP_WS_HOST || CONFIG.ASTERISK_HOST}:${CONFIG.ARI_PORT}/ws`
 );
-CONFIG.SIP_DOMAIN  = env('SIP_DOMAIN', CONFIG.SIP_WS_HOST || CONFIG.ASTERISK_HOST);
+CONFIG.SIP_DOMAIN = env('SIP_DOMAIN', CONFIG.SIP_WS_HOST || CONFIG.ASTERISK_HOST);
 
 const log = {
-  info:  (...a) => console.log( new Date().toISOString(), '[DIALER]', ...a),
-  warn:  (...a) => console.warn( new Date().toISOString(), '[DIALER]', ...a),
+  info: (...a) => console.log(new Date().toISOString(), '[DIALER]', ...a),
+  warn: (...a) => console.warn(new Date().toISOString(), '[DIALER]', ...a),
   error: (...a) => console.error(new Date().toISOString(), '[DIALER]', ...a),
 };
 
@@ -114,9 +114,9 @@ const badRequest = (msg, detail) => new HttpError(400, msg, detail);
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
-const RE_CHANNEL_ID  = /^[A-Za-z0-9._:@-]{1,128}$/;
-const RE_ENDPOINT    = /^[A-Za-z0-9._+-]{1,64}$/;
-const RE_RECORDING   = /^[A-Za-z0-9._/-]{1,128}$/;
+const RE_CHANNEL_ID = /^[A-Za-z0-9._:@-]{1,128}$/;
+const RE_ENDPOINT = /^[A-Za-z0-9._+-]{1,64}$/;
+const RE_RECORDING = /^[A-Za-z0-9._/-]{1,128}$/;
 const MUTE_DIRECTIONS = new Set(['in', 'out', 'both']);
 
 function requireChannelId(value) {
@@ -271,7 +271,7 @@ function sendAri(res, result) {
 }
 
 const hangupChannel = (channelId) =>
-  ariRequest('DELETE', `/ari/channels/${encodeURIComponent(channelId)}`).catch(() => {});
+  ariRequest('DELETE', `/ari/channels/${encodeURIComponent(channelId)}`).catch(() => { });
 
 // ── AMI client ───────────────────────────────────────────────────────────────
 
@@ -472,30 +472,30 @@ setInterval(() => {
 
 // ── Call state ────────────────────────────────────────────────────────────────
 
-const stasisChannels   = new Map();
+const stasisChannels = new Map();
 const pendingBridgeJoins = new Map();
-const managedBridges   = new Set();
-const pstnCalls        = new Map();
-const channelToCall    = new Map();
+const managedBridges = new Set();
+const pstnCalls = new Map();
+const channelToCall = new Map();
 
-let ariWs        = null;
-let ariWsReady   = false;
+let ariWs = null;
+let ariWsReady = false;
 let ariWsBackoff = 1000;
-let ariWsAlive   = false;
+let ariWsAlive = false;
 let shuttingDown = false;
 
 function callSnapshot(call) {
   return {
-    callId:         call.callId,
-    bridgeId:       call.bridgeId,
-    state:          call.state,
-    destination:    call.destination,
+    callId: call.callId,
+    bridgeId: call.bridgeId,
+    state: call.state,
+    destination: call.destination,
     agentExtension: call.agentExtension,
     agentChannelId: call.agentChannelId,
-    pstnChannelId:  call.pstnChannelId,
-    route:          call.route,
-    createdAt:      call.createdAt,
-    answeredAt:     call.answeredAt || null
+    pstnChannelId: call.pstnChannelId,
+    route: call.route,
+    createdAt: call.createdAt,
+    answeredAt: call.answeredAt || null
   };
 }
 
@@ -539,7 +539,7 @@ async function endpointStatus(resource) {
   if (r.status >= 400) return { exists: null, state: null, status: r.status };
   return {
     exists: true,
-    state:  r.body?.state ?? null,
+    state: r.body?.state ?? null,
     activeChannels: Array.isArray(r.body?.channel_ids) ? r.body.channel_ids.length : null
   };
 }
@@ -547,11 +547,11 @@ async function endpointStatus(resource) {
 const isOnline = (st) => st.exists === true && String(st.state).toLowerCase() !== 'offline';
 
 async function resolveFlow(agentExtension, override) {
-  if (override === true)  return { agentLeg: true,  reason: 'requested per call' };
+  if (override === true) return { agentLeg: true, reason: 'requested per call' };
   if (override === false) return { agentLeg: false, reason: 'declined per call' };
 
   const mode = String(CONFIG.PSTN_FLOW).toLowerCase();
-  if (mode === 'agent')  return { agentLeg: true,  reason: 'PSTN_FLOW=agent' };
+  if (mode === 'agent') return { agentLeg: true, reason: 'PSTN_FLOW=agent' };
   if (mode === 'direct') return { agentLeg: false, reason: 'PSTN_FLOW=direct' };
 
   const st = await endpointStatus(agentExtension).catch(() => ({ exists: null, state: null }));
@@ -613,7 +613,7 @@ async function startPstnCall(opts) {
   } catch (err) {
     pstnCalls.delete(call.callId);
     managedBridges.delete(bridgeId);
-    await ariRequest('DELETE', `/ari/bridges/${encodeURIComponent(bridgeId)}`).catch(() => {});
+    await ariRequest('DELETE', `/ari/bridges/${encodeURIComponent(bridgeId)}`).catch(() => { });
     if (/allocation failed/i.test(err.message || '')) {
       throw new HttpError(503,
         `Asterisk could not allocate a channel to PJSIP/${agentExtension} (Allocation failed). ` +
@@ -716,7 +716,7 @@ function finalizeCall(callId, reason) {
   snapshot.state = 'ended';
   broadcastEvent({ event: 'PstnCallEnded', ...snapshot, lastState: call.state, reason: reason || call.endReason || '' });
   log.info(`[CALL/PSTN] Call ${callId} ended (${reason || call.endReason || 'normal'})`);
-  destroyBridgeIfEmpty(call.bridgeId).catch(() => {});
+  destroyBridgeIfEmpty(call.bridgeId).catch(() => { });
 }
 
 function handleLegGone(channelId, cause) {
@@ -745,10 +745,10 @@ function handleLegGone(channelId, cause) {
 async function handleStasisStart(evt) {
   const channelId = evt.channel?.id;
   if (!channelId) return;
-  const args  = evt.args || [];
-  const vars  = evt.channel?.channelvars || {};
+  const args = evt.args || [];
+  const vars = evt.channel?.channelvars || {};
   const state = evt.channel?.state;
-  const role  = args[0] || '';
+  const role = args[0] || '';
 
   log.info(`[ARI-WS] StasisStart channel=${channelId} state=${state} args=${args.join(',')}`);
   stasisChannels.set(channelId, { answered: state === 'Up', role, args, vars, startedAt: new Date().toISOString() });
@@ -765,7 +765,7 @@ async function handleStasisStart(evt) {
   broadcastEvent({ event: 'StasisStart', channelId, role, args, vars, state });
 
   if (role === 'pstn-agent') { await onAgentLegAnswered(channelId, args[1]); return; }
-  if (role === 'pstn-out')   { await onPstnLegAnswered(channelId, args[1]);  return; }
+  if (role === 'pstn-out') { await onPstnLegAnswered(channelId, args[1]); return; }
 
   const bridgeId = pendingBridgeJoins.get(channelId) || (role === 'transfer' ? args[1] : null);
   if (bridgeId) {
@@ -877,6 +877,10 @@ function connectAriWebSocket() {
 
   ariWs.on('unexpected-response', (_req, res) => {
     log.error(`[ARI-WS] Handshake rejected with HTTP ${res.statusCode} — check ARI user/password`);
+    // 'unexpected-response' is a separate event from 'close' in the ws library --
+    // without this, a rejected handshake (e.g. a transient non-101 response)
+    // permanently kills the reconnect loop instead of retrying.
+    ariWs.terminate();
   });
 
   ariWs.on('error', (err) => log.error('[ARI-WS] Error:', err.message));
@@ -1048,13 +1052,14 @@ export const postCallAgent = [
     const callerId = cleanCallerId(req.body?.callerId) || (agentName ? `"${agentName}" <${endpoint}>` : undefined);
     const result = await ari('POST', '/ari/channels',
       { endpoint: `PJSIP/${endpoint}`, app: CONFIG.ARI_APP, appArgs: 'agent', callerId },
-      { variables: compactVars({
+      {
+        variables: compactVars({
           company_id: cleanTag(req.body?.companyId || req.user?.companyId, 'companyId'),
-          agent_id:   cleanTag(req.body?.agentId || req.user?.userId,       'agentId'),
+          agent_id: cleanTag(req.body?.agentId || req.user?.userId, 'agentId'),
           agent_name: agentName,
-          user_name:  agentName,
-          lead_id:    cleanTag(req.body?.leadId,                            'leadId'),
-          caller_id:  callerId
+          user_name: agentName,
+          lead_id: cleanTag(req.body?.leadId, 'leadId'),
+          caller_id: callerId
         })
       }
     );
@@ -1085,12 +1090,12 @@ export const postCallPstn = [
     const e164 = toE164(req.body.to);
     const agentName = cleanTag(req.body?.agentName || req.user?.fullName, 'agentName');
     const vars = compactVars({
-      company_id:  cleanTag(req.body?.companyId || req.user?.companyId, 'companyId'),
-      agent_id:    cleanTag(req.body?.agentId || req.user?.userId,       'agentId'),
-      agent_name:  agentName,
-      user_name:   agentName,
-      lead_id:     cleanTag(req.body?.leadId,                            'leadId'),
-      campaign_id: cleanTag(req.body?.campaignId,                        'campaignId'),
+      company_id: cleanTag(req.body?.companyId || req.user?.companyId, 'companyId'),
+      agent_id: cleanTag(req.body?.agentId || req.user?.userId, 'agentId'),
+      agent_name: agentName,
+      user_name: agentName,
+      lead_id: cleanTag(req.body?.leadId, 'leadId'),
+      campaign_id: cleanTag(req.body?.campaignId, 'campaignId'),
       destination: e164
     });
     // caller_id (from DID dropdown) takes precedence, then pstnCallerId, then global default
@@ -1206,7 +1211,7 @@ export const transferCall = [
     try { await joinBridge(bridgeId, channelId); }
     catch (err) {
       managedBridges.delete(bridgeId);
-      await ariRequest('DELETE', `/ari/bridges/${encodeURIComponent(bridgeId)}`).catch(() => {});
+      await ariRequest('DELETE', `/ari/bridges/${encodeURIComponent(bridgeId)}`).catch(() => { });
       throw err;
     }
 
@@ -1221,7 +1226,7 @@ export const transferCall = [
       agentChannelId = agentRes.body?.id;
     } catch (err) {
       managedBridges.delete(bridgeId);
-      await ariRequest('DELETE', `/ari/bridges/${encodeURIComponent(bridgeId)}`).catch(() => {});
+      await ariRequest('DELETE', `/ari/bridges/${encodeURIComponent(bridgeId)}`).catch(() => { });
       throw err;
     }
 
@@ -1235,21 +1240,21 @@ export const postCallCallback = wrap(async (req, res) => {
   const e164 = toE164(req.body.to);
   const channel = pstnDialString(e164);
   const variables = Object.entries(compactVars({
-    company_id:  cleanTag(req.body?.companyId,  'companyId'),
-    lead_id:     cleanTag(req.body?.leadId,      'leadId'),
-    campaign_id: cleanTag(req.body?.campaignId,  'campaignId'),
+    company_id: cleanTag(req.body?.companyId, 'companyId'),
+    lead_id: cleanTag(req.body?.leadId, 'leadId'),
+    campaign_id: cleanTag(req.body?.campaignId, 'campaignId'),
     destination: e164
   })).map(([k, v]) => `${k}=${v}`);
   log.info(`[CALLBACK] ${req.body.to} -> ${channel}`);
   const result = await ami.send('Originate', {
-    Channel:   channel,
-    Context:   CONFIG.CALLBACK_CONTEXT,
-    Exten:     cleanTag(req.body?.exten || 's', 'exten'),
-    Priority:  '1',
-    CallerID:  cleanCallerId(req.body?.callerId) || CONFIG.PSTN_CALLER_ID,
-    Async:     'true',
-    ActionID:  cleanTag(req.body?.callbackId || `callback_${Date.now()}`, 'callbackId'),
-    Variable:  variables
+    Channel: channel,
+    Context: CONFIG.CALLBACK_CONTEXT,
+    Exten: cleanTag(req.body?.exten || 's', 'exten'),
+    Priority: '1',
+    CallerID: cleanCallerId(req.body?.callerId) || CONFIG.PSTN_CALLER_ID,
+    Async: 'true',
+    ActionID: cleanTag(req.body?.callbackId || `callback_${Date.now()}`, 'callbackId'),
+    Variable: variables
   });
   res.json(result);
 });
@@ -1260,10 +1265,10 @@ export const addToQueue = wrap(async (req, res) => {
   const penalty = Number.parseInt(req.body?.penalty ?? 0, 10);
   if (!Number.isFinite(penalty) || penalty < 0) throw badRequest('penalty must be >= 0');
   const result = await ami.send('QueueAdd', {
-    Queue:      queue,
-    Interface:  iface,
-    Penalty:    penalty,
-    Paused:     'false',
+    Queue: queue,
+    Interface: iface,
+    Penalty: penalty,
+    Paused: 'false',
     MemberName: cleanTag(req.body?.memberName || iface, 'memberName')
   });
   res.json(result);
@@ -1274,10 +1279,10 @@ export const pauseQueue = wrap(async (req, res) => {
   const iface = requireInterface(req.body?.interface);
   if (req.body?.paused === undefined) throw badRequest('paused is required');
   const result = await ami.send('QueuePause', {
-    Queue:     queue,
+    Queue: queue,
     Interface: iface,
-    Paused:    req.body.paused ? 'true' : 'false',
-    Reason:    cleanTag(req.body?.reason, 'reason')
+    Paused: req.body.paused ? 'true' : 'false',
+    Reason: cleanTag(req.body?.reason, 'reason')
   });
   res.json(result);
 });
