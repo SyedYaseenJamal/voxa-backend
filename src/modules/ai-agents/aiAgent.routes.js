@@ -12,17 +12,21 @@ import {
   adminCreateConfig,
   adminUpdateConfig,
   adminDeleteConfig,
+  adminSyncConfig,
   adminListCalls,
   adminGetCall,
   adminTriggerCall,
+  adminGetRecording,
   // Company
   companyListConfigs,
   companyCreateConfig,
   companyUpdateConfig,
   companyDeleteConfig,
+  companySyncConfig,
   companyListCalls,
   companyGetCall,
   companyTriggerCall,
+  companyGetRecording,
   // Company Schemas
   companyListSchemas,
   companyCreateSchema,
@@ -184,6 +188,7 @@ router.post(   '/company/configs',      protect, requireCustomerPortal, requireP
  */
 router.put(    '/company/configs/:id',  protect, requireCustomerPortal, requirePermission('agents:update'), companyUpdateConfig);
 router.delete( '/company/configs/:id',  protect, requireCustomerPortal, requirePermission('agents:delete'), companyDeleteConfig);
+router.post(   '/company/configs/:id/sync', protect, requireCustomerPortal, requirePermission('agents:update'), companySyncConfig);
 
 /**
  * @swagger
@@ -255,6 +260,7 @@ router.post(   '/company/calls/trigger',protect, requireCustomerPortal, requireP
  *         description: Call log details returned
  */
 router.get(    '/company/calls/:id',    protect, requireCustomerPortal, requirePermission('agents:read'), companyGetCall);
+router.get(    '/company/calls/:id/recording', protect, requireCustomerPortal, requirePermission('agents:read'), companyGetRecording);
 
 /**
  * @swagger
@@ -414,6 +420,7 @@ router.post(   '/configs',      protect, requireAdminPortal, requirePermission('
 router.get(    '/configs/:id',  protect, requireAdminPortal, requirePermission('agents:read'), adminGetConfig);
 router.put(    '/configs/:id',  protect, requireAdminPortal, requirePermission('agents:update'), adminUpdateConfig);
 router.delete( '/configs/:id',  protect, requireAdminPortal, requirePermission('agents:delete'), adminDeleteConfig);
+router.post(   '/configs/:id/sync', protect, requireAdminPortal, requirePermission('agents:update'), adminSyncConfig);
 
 /**
  * @swagger
@@ -469,6 +476,7 @@ router.post(   '/calls/trigger', protect, requireAdminPortal, requirePermission(
  *         description: Call details returned
  */
 router.get(    '/calls/:id',     protect, requireAdminPortal, requirePermission('agents:read'), adminGetCall);
+router.get(    '/calls/:id/recording', protect, requireAdminPortal, requirePermission('agents:read'), adminGetRecording);
 
 /**
  * @swagger
