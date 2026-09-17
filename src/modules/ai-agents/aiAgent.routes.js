@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import express from 'express';
 import { protect } from '../../middlewares/authenticate.js';
-import { requireAdminPortal, requireCustomerPortal } from '../../middlewares/authorizePermission.js';
+import { requireAdminPortal, requireCustomerPortal, requirePermission } from '../../middlewares/authorizePermission.js';
 import {
   // Admin
   adminListConfigs,
@@ -141,8 +141,8 @@ router.post(
  *       201:
  *         description: AI Agent configuration created
  */
-router.get(    '/company/configs',      protect, requireCustomerPortal, companyListConfigs);
-router.post(   '/company/configs',      protect, requireCustomerPortal, companyCreateConfig);
+router.get(    '/company/configs',      protect, requireCustomerPortal, requirePermission('agents:read'), companyListConfigs);
+router.post(   '/company/configs',      protect, requireCustomerPortal, requirePermission('agents:create'), companyCreateConfig);
 
 /**
  * @swagger
@@ -182,8 +182,8 @@ router.post(   '/company/configs',      protect, requireCustomerPortal, companyC
  *       200:
  *         description: Config deleted
  */
-router.put(    '/company/configs/:id',  protect, requireCustomerPortal, companyUpdateConfig);
-router.delete( '/company/configs/:id',  protect, requireCustomerPortal, companyDeleteConfig);
+router.put(    '/company/configs/:id',  protect, requireCustomerPortal, requirePermission('agents:update'), companyUpdateConfig);
+router.delete( '/company/configs/:id',  protect, requireCustomerPortal, requirePermission('agents:delete'), companyDeleteConfig);
 
 /**
  * @swagger
@@ -203,7 +203,7 @@ router.delete( '/company/configs/:id',  protect, requireCustomerPortal, companyD
  *       200:
  *         description: List of company AI call logs
  */
-router.get(    '/company/calls',        protect, requireCustomerPortal, companyListCalls);
+router.get(    '/company/calls',        protect, requireCustomerPortal, requirePermission('agents:read'), companyListCalls);
 
 /**
  * @swagger
@@ -234,7 +234,7 @@ router.get(    '/company/calls',        protect, requireCustomerPortal, companyL
  *       200:
  *         description: Outbound AI call triggered successfully
  */
-router.post(   '/company/calls/trigger',protect, requireCustomerPortal, companyTriggerCall);
+router.post(   '/company/calls/trigger',protect, requireCustomerPortal, requirePermission('agents:trigger'), companyTriggerCall);
 
 /**
  * @swagger
@@ -254,7 +254,7 @@ router.post(   '/company/calls/trigger',protect, requireCustomerPortal, companyT
  *       200:
  *         description: Call log details returned
  */
-router.get(    '/company/calls/:id',    protect, requireCustomerPortal, companyGetCall);
+router.get(    '/company/calls/:id',    protect, requireCustomerPortal, requirePermission('agents:read'), companyGetCall);
 
 /**
  * @swagger
@@ -295,8 +295,8 @@ router.get(    '/company/calls/:id',    protect, requireCustomerPortal, companyG
  *       201:
  *         description: Schema created
  */
-router.get(    '/company/schemas',      protect, requireCustomerPortal, companyListSchemas);
-router.post(   '/company/schemas',      protect, requireCustomerPortal, companyCreateSchema);
+router.get(    '/company/schemas',      protect, requireCustomerPortal, requirePermission('agents:read'), companyListSchemas);
+router.post(   '/company/schemas',      protect, requireCustomerPortal, requirePermission('agents:create'), companyCreateSchema);
 
 /**
  * @swagger
@@ -330,8 +330,8 @@ router.post(   '/company/schemas',      protect, requireCustomerPortal, companyC
  *       200:
  *         description: Schema deleted
  */
-router.put(    '/company/schemas/:id',  protect, requireCustomerPortal, companyUpdateSchema);
-router.delete( '/company/schemas/:id',  protect, requireCustomerPortal, companyDeleteSchema);
+router.put(    '/company/schemas/:id',  protect, requireCustomerPortal, requirePermission('agents:update'), companyUpdateSchema);
+router.delete( '/company/schemas/:id',  protect, requireCustomerPortal, requirePermission('agents:delete'), companyDeleteSchema);
 
 // ── ADMIN routes ───────────────────────────────────────────────────────────────
 
@@ -362,8 +362,8 @@ router.delete( '/company/schemas/:id',  protect, requireCustomerPortal, companyD
  *       201:
  *         description: Config created
  */
-router.get(    '/configs',      protect, requireAdminPortal, adminListConfigs);
-router.post(   '/configs',      protect, requireAdminPortal, adminCreateConfig);
+router.get(    '/configs',      protect, requireAdminPortal, requirePermission('agents:read'), adminListConfigs);
+router.post(   '/configs',      protect, requireAdminPortal, requirePermission('agents:create'), adminCreateConfig);
 
 /**
  * @swagger
@@ -411,9 +411,9 @@ router.post(   '/configs',      protect, requireAdminPortal, adminCreateConfig);
  *       200:
  *         description: Config deleted
  */
-router.get(    '/configs/:id',  protect, requireAdminPortal, adminGetConfig);
-router.put(    '/configs/:id',  protect, requireAdminPortal, adminUpdateConfig);
-router.delete( '/configs/:id',  protect, requireAdminPortal, adminDeleteConfig);
+router.get(    '/configs/:id',  protect, requireAdminPortal, requirePermission('agents:read'), adminGetConfig);
+router.put(    '/configs/:id',  protect, requireAdminPortal, requirePermission('agents:update'), adminUpdateConfig);
+router.delete( '/configs/:id',  protect, requireAdminPortal, requirePermission('agents:delete'), adminDeleteConfig);
 
 /**
  * @swagger
@@ -427,7 +427,7 @@ router.delete( '/configs/:id',  protect, requireAdminPortal, adminDeleteConfig);
  *       200:
  *         description: List of global AI call logs
  */
-router.get(    '/calls',         protect, requireAdminPortal, adminListCalls);
+router.get(    '/calls',         protect, requireAdminPortal, requirePermission('agents:read'), adminListCalls);
 
 /**
  * @swagger
@@ -448,7 +448,7 @@ router.get(    '/calls',         protect, requireAdminPortal, adminListCalls);
  *       200:
  *         description: Call triggered
  */
-router.post(   '/calls/trigger', protect, requireAdminPortal, adminTriggerCall);
+router.post(   '/calls/trigger', protect, requireAdminPortal, requirePermission('agents:trigger'), adminTriggerCall);
 
 /**
  * @swagger
@@ -468,7 +468,7 @@ router.post(   '/calls/trigger', protect, requireAdminPortal, adminTriggerCall);
  *       200:
  *         description: Call details returned
  */
-router.get(    '/calls/:id',     protect, requireAdminPortal, adminGetCall);
+router.get(    '/calls/:id',     protect, requireAdminPortal, requirePermission('agents:read'), adminGetCall);
 
 /**
  * @swagger
@@ -497,7 +497,7 @@ router.get(    '/calls/:id',     protect, requireAdminPortal, adminGetCall);
  *       201:
  *         description: Schema created
  */
-router.get(    '/schemas',       protect, requireAdminPortal, adminListSchemas);
-router.post(   '/schemas',       protect, requireAdminPortal, adminCreateSchema);
+router.get(    '/schemas',       protect, requireAdminPortal, requirePermission('agents:read'), adminListSchemas);
+router.post(   '/schemas',       protect, requireAdminPortal, requirePermission('agents:create'), adminCreateSchema);
 
 export default router;

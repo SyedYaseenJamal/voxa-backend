@@ -2,15 +2,21 @@ import Permission from './permission.model.js';
 import Role from '../roles/role.model.js';
 import AppError from '../../utils/AppError.js';
 
-export const createPermission = async (name, module, action, description, isSystem = false) => {
+export const createPermission = async (name, module, action, description, isSystem = false, scope = 'both') => {
   const existing = await Permission.findOne({ name });
   if (existing) throw new AppError('Permission with this name already exists', 400);
 
-  return await Permission.create({ name, module, action, description, isSystem });
+  return await Permission.create({ name, module, action, description, isSystem, scope });
 };
 
-export const getPermissions = async () => {
-  return await Permission.find().sort({ module: 1, name: 1 });
+export const getPermissions = async (scope = null) => {
+  const filter = {};
+  if (scope === 'admin') {
+    filter.scope = { $in: ['admin', 'both'] };
+  } else if (scope === 'company') {
+    filter.scope = { $in: ['company', 'both'] };
+  }
+  return await Permission.find(filter).sort({ module: 1, name: 1 });
 };
 
 export const updatePermission = async (id, updateData) => {

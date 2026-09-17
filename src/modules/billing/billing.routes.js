@@ -17,7 +17,9 @@ const router = express.Router();
  *       200:
  *         description: List of plans
  */
-router.get('/plans', protect, async (req, res) => {
+import { requireAdminPortal, requirePermission } from '../../middlewares/authorizePermission.js';
+
+router.get('/plans', protect, requirePermission('billing:read'), async (req, res) => {
   try {
     const plans = await Plan.find().lean();
     return success(res, plans, 'Plans fetched successfully');
@@ -25,8 +27,6 @@ router.get('/plans', protect, async (req, res) => {
     return apiError(res, err.statusCode || 500, err.message);
   }
 });
-
-import { requireAdminPortal, requirePermission } from '../../middlewares/authorizePermission.js';
 
 router.post('/plans', protect, requireAdminPortal, requirePermission('billing:update'), async (req, res) => {
   try {

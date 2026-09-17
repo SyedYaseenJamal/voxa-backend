@@ -15,10 +15,12 @@ import {
 
 const router = Router();
 
-router.get('/company/logs', protect, getCompanyCallLogs);
-router.get('/admin/logs', protect, getAdminMasterLogs);
-router.get('/notes/:callId', protect, getCallNotes);
-router.post('/notes/:callId', protect, addCallNote);
+import { requirePermission } from '../../middlewares/authorizePermission.js';
+
+router.get('/company/logs', protect, requirePermission('calls:read'), getCompanyCallLogs);
+router.get('/admin/logs', protect, requirePermission('calls:read'), getAdminMasterLogs);
+router.get('/notes/:callId', protect, requirePermission('calls:read'), getCallNotes);
+router.post('/notes/:callId', protect, requirePermission('calls:notes'), addCallNote);
 
 /**
  * @swagger

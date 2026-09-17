@@ -3,8 +3,8 @@ import { success, error as apiError } from '../../utils/ApiResponse.js';
 
 export const createPermission = async (req, res) => {
   try {
-    const { name, module, action, description, isSystem } = req.body;
-    const permission = await permissionService.createPermission(name, module, action, description, isSystem);
+    const { name, module, action, description, isSystem, scope } = req.body;
+    const permission = await permissionService.createPermission(name, module, action, description, isSystem, scope);
     return success(res, permission, 'Permission created successfully', 201);
   } catch (err) {
     return apiError(res, err.statusCode || 500, err.message);
@@ -13,7 +13,8 @@ export const createPermission = async (req, res) => {
 
 export const getPermissions = async (req, res) => {
   try {
-    const permissions = await permissionService.getPermissions();
+    const scope = req.query.scope || (req.user?.portal === 'customer' ? 'company' : null);
+    const permissions = await permissionService.getPermissions(scope);
     return success(res, permissions, 'Permissions fetched successfully');
   } catch (err) {
     return apiError(res, err.statusCode || 500, err.message);

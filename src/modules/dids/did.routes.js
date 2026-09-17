@@ -3,7 +3,7 @@
 
 import { Router } from 'express';
 import { protect } from '../../middlewares/authenticate.js';
-import { requireAdminPortal, requireCustomerPortal } from '../../middlewares/authorizePermission.js';
+import { requireAdminPortal, requireCustomerPortal, requirePermission } from '../../middlewares/authorizePermission.js';
 import {
   createDid,
   listDids,
@@ -28,6 +28,7 @@ router.get(
   '/company/mine',
   protect,
   requireCustomerPortal,
+  requirePermission('did:read'),
   listCompanyDids
 );
 
@@ -36,6 +37,7 @@ router.get(
   '/company/mine/:didId/history',
   protect,
   requireCustomerPortal,
+  requirePermission('did:read'),
   getCompanyDidHistory
 );
 
@@ -44,6 +46,7 @@ router.patch(
   '/company/mine/:didId/assign-user',
   protect,
   requireCustomerPortal,
+  requirePermission('did:assign'),
   assignUserToDid
 );
 
@@ -54,6 +57,7 @@ router.post(
   '/',
   protect,
   requireAdminPortal,
+  requirePermission('did:create'),
   createDid
 );
 
@@ -62,6 +66,7 @@ router.get(
   '/',
   protect,
   requireAdminPortal,
+  requirePermission('did:read'),
   listDids
 );
 
@@ -70,6 +75,7 @@ router.get(
   '/:id',
   protect,
   requireAdminPortal,
+  requirePermission('did:read'),
   getDid
 );
 
@@ -78,6 +84,7 @@ router.get(
   '/:id/history',
   protect,
   requireAdminPortal,
+  requirePermission('did:read'),
   getDidHistory
 );
 
@@ -86,6 +93,7 @@ router.patch(
   '/:id',
   protect,
   requireAdminPortal,
+  requirePermission('did:update'),
   updateDid
 );
 
@@ -94,6 +102,7 @@ router.delete(
   '/:id',
   protect,
   requireAdminPortal,
+  requirePermission('did:delete'),
   deleteDid
 );
 
@@ -102,6 +111,7 @@ router.post(
   '/:id/assign',
   protect,
   requireAdminPortal,
+  requirePermission('did:assign'),
   assignDid
 );
 
@@ -110,6 +120,7 @@ router.post(
   '/:id/release',
   protect,
   requireAdminPortal,
+  requirePermission('did:release'),
   releaseDid
 );
 

@@ -63,28 +63,31 @@ router.get('/diag/pstn',       diagPstn);
 // real-time call state: PstnCallStarted, AgentAnswered, PstnCallBridged, etc.
 router.get('/events', sseEvents);
 
+import { protect } from '../../middlewares/authenticate.js';
+import { requirePermission } from '../../middlewares/authorizePermission.js';
+
 // ── Call origination ─────────────────────────────────────────────────────────
 // POST /api/v1/dialer/calls/agent   { endpoint, callerId }
-router.post('/calls/agent', ...postCallAgent);
+router.post('/calls/agent', protect, requirePermission('dialer:access'), ...postCallAgent);
 
 // POST /api/v1/dialer/calls/ai      { to, flowId, flowVersion }
-router.post('/calls/ai', ...postCallAi);
+router.post('/calls/ai', protect, requirePermission('dialer:access'), ...postCallAi);
 
 // POST /api/v1/dialer/calls/pstn    { to, agentExtension?, callerId?, pstnCallerId?, agentLeg? }
 // This is the primary outbound call endpoint used by the browser dialer.
-router.post('/calls/pstn', ...postCallPstn);
+router.post('/calls/pstn', protect, requirePermission('dialer:access'), ...postCallPstn);
 
 // ── Channel list ─────────────────────────────────────────────────────────────
-router.get('/calls', getCallsList);
+router.get('/calls', protect, requirePermission('dialer:access'), getCallsList);
 
 // ── Per-channel operations ───────────────────────────────────────────────────
-router.post(  '/calls/:channelId/answer',   answerCall);
-router.delete('/calls/:channelId',          hangupCall);
-router.post(  '/calls/:channelId/hold',     holdCall);
-router.delete('/calls/:channelId/hold',     unholdCall);
-router.post(  '/calls/:channelId/mute',     muteCall);
-router.delete('/calls/:channelId/mute',     unmuteCall);
-router.post(  '/calls/:channelId/transfer', ...transferCall);
+router.post(  '/calls/:channelId/answer',   protect, requirePermission('dialer:access'), answerCall);
+router.delete('/calls/:channelId',          protect, requirePermission('dialer:access'), hangupCall);
+router.post(  '/calls/:channelId/hold',     protect, requirePermission('dialer:access'), holdCall);
+router.delete('/calls/:channelId/hold',     protect, requirePermission('dialer:access'), unholdCall);
+router.post(  '/calls/:channelId/mute',     protect, requirePermission('dialer:access'), muteCall);
+router.delete('/calls/:channelId/mute',     protect, requirePermission('dialer:access'), unmuteCall);
+router.post(  '/calls/:channelId/transfer', protect, requirePermission('dialer:access'), ...transferCall);
 
 // ── Two-leg PSTN call introspection ──────────────────────────────────────────
 router.get(   '/pstn/calls',          getPstnCalls);

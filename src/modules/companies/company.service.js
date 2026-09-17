@@ -92,16 +92,65 @@ export const createCompany = async (companyData, adminEmail, adminFullName, tena
       });
     }
 
-    // 4. Create default "Company Admin" role for this new company with all system permissions
-    const allPermissions = await Permission.find();
-    const permissionNames = allPermissions.map(p => p.name);
+    // 4. Create designated company roles scoped to this company
+    const companyPermissions = await Permission.find({ scope: { $in: ['company', 'both'] } });
+    const companyPermissionNames = companyPermissions.map(p => p.name);
 
+    // 4.1 Company Admin Role (Full company access)
     const adminRole = await Role.create({
       name: 'Company Admin',
       description: 'Head administrator of the company. Full access within company scope.',
       scope: 'company',
       companyId: company._id,
-      permissions: permissionNames,
+      permissions: companyPermissionNames,
+      createdBy
+    });
+
+    // 4.2 Dialer Operator Role (Dialer and basic call logs only)
+    await Role.create({
+      name: 'Dialer Operator',
+      description: 'Call center operator restricted to softphone dialer and basic call history',
+      scope: 'company',
+      companyId: company._id,
+      permissions: ['dialer:access', 'calls:read'],
+      createdBy
+    });
+
+    // 4.3 Campaign Manager Role
+    await Role.create({
+      name: 'Campaign Manager',
+      description: 'Manages outbound IVR campaigns, OBD audio broadcasts, and lead contacts',
+      scope: 'company',
+      companyId: company._id,
+      permissions: [
+        'campaigns:read', 'campaigns:create', 'campaigns:update', 'campaigns:delete',
+        'leads:read', 'leads:create', 'leads:update', 'forms:read'
+      ],
+      createdBy
+    });
+
+    // 4.4 Support / Live Agent Role
+    await Role.create({
+      name: 'Support / Live Agent',
+      description: 'Customer chat messenger replies, inbound call receiving, and dialer calls',
+      scope: 'company',
+      companyId: company._id,
+      permissions: [
+        'messages:read', 'messages:send', 'dialer:access', 'calls:read', 'calls:notes', 'forms:read'
+      ],
+      createdBy
+    });
+
+    // 4.5 Supervisor / Team Lead Role
+    await Role.create({
+      name: 'Supervisor / Team Lead',
+      description: 'Monitors team members, reviews call recordings, transcripts, and lead workflows',
+      scope: 'company',
+      companyId: company._id,
+      permissions: [
+        'users:read', 'calls:read', 'calls:notes', 'calls:recordings',
+        'leads:read', 'leads:update', 'agents:read'
+      ],
       createdBy
     });
 

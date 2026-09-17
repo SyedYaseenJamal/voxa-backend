@@ -5,6 +5,7 @@ const PermissionSchema = new mongoose.Schema({
   module:      { type: String, required: true },               // users | billing | calls | agents | campaigns
   action:      { type: String, required: true },               // create | read | update | delete | export
   description: { type: String },
+  scope:       { type: String, enum: ['admin', 'company', 'both'], default: 'both' }, // portal scope
   isSystem:    { type: Boolean, default: false }               // true = cannot be deleted by anyone
 }, { timestamps: true });
 

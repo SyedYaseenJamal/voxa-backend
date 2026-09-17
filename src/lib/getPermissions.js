@@ -14,19 +14,29 @@ import Permission from '../modules/permissions/permission.model.js';
 
 /**
  * Returns a flat array of all permission name strings from the DB.
+ * @param {string|null} scope
  * @returns {Promise<string[]>}
  */
-export const getPermissions = async () => {
-  const permissions = await Permission.find({}).select('name -_id').lean();
+export const getPermissions = async (scope = null) => {
+  const filter = {};
+  if (scope === 'admin') filter.scope = { $in: ['admin', 'both'] };
+  else if (scope === 'company') filter.scope = { $in: ['company', 'both'] };
+
+  const permissions = await Permission.find(filter).select('name -_id').lean();
   return permissions.map((p) => p.name);
 };
 
 /**
  * Returns permissions grouped by module.
+ * @param {string|null} scope
  * @returns {Promise<Record<string, string[]>>}
  */
-export const getPermissionsGrouped = async () => {
-  const permissions = await Permission.find({}).select('name module -_id').lean();
+export const getPermissionsGrouped = async (scope = null) => {
+  const filter = {};
+  if (scope === 'admin') filter.scope = { $in: ['admin', 'both'] };
+  else if (scope === 'company') filter.scope = { $in: ['company', 'both'] };
+
+  const permissions = await Permission.find(filter).select('name module -_id').lean();
   return permissions.reduce((acc, p) => {
     if (!acc[p.module]) acc[p.module] = [];
     acc[p.module].push(p.name);

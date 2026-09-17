@@ -1,13 +1,16 @@
 import { Router } from 'express';
 import { protect } from '../../middlewares/authenticate.js';
+import { requirePermission } from '../../middlewares/authorizePermission.js';
 import { getLeads, getLeadsStats, createSingleLead, importCsvLeads } from './leads.controller.js';
 
 const router = Router();
 
-router.get('/', protect, getLeads);
-router.get('/stats', protect, getLeadsStats);
+router.use(protect);
 
-router.post('/single', protect, createSingleLead);
-router.post('/csv', protect, importCsvLeads);
+router.get('/', requirePermission('leads:read'), getLeads);
+router.get('/stats', requirePermission('leads:read'), getLeadsStats);
+
+router.post('/single', requirePermission('leads:create'), createSingleLead);
+router.post('/csv', requirePermission('leads:create'), importCsvLeads);
 
 export default router;

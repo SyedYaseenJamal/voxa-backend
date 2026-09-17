@@ -9,80 +9,121 @@ import User from '../modules/auth/auth.model.js';
 dotenv.config();
 
 // Master permission list following VOXA schema: name = module:action
-const permissionsData = [
-  // Companies
-  { name: 'companies:create', module: 'companies', action: 'create', description: 'Create new companies', isSystem: true },
-  { name: 'companies:read',   module: 'companies', action: 'read',   description: 'View companies list and details', isSystem: true },
-  { name: 'companies:update', module: 'companies', action: 'update', description: 'Update company details and status', isSystem: true },
-  { name: 'companies:delete', module: 'companies', action: 'delete', description: 'Delete companies', isSystem: true },
+export const permissionsData = [
+  // ── Companies (Admin Only) ─────────────────────────────────────────────────
+  { name: 'companies:create', module: 'companies', action: 'create', description: 'Create new companies and onboard initial admin', scope: 'admin', isSystem: true },
+  { name: 'companies:read',   module: 'companies', action: 'read',   description: 'View companies list, details, and tenant info', scope: 'admin', isSystem: true },
+  { name: 'companies:update', module: 'companies', action: 'update', description: 'Update company details, status, and tenant configuration', scope: 'admin', isSystem: true },
+  { name: 'companies:delete', module: 'companies', action: 'delete', description: 'Deactivate or delete companies', scope: 'admin', isSystem: true },
 
-  // Users
-  { name: 'users:create', module: 'users', action: 'create', description: 'Create new users', isSystem: true },
-  { name: 'users:read',   module: 'users', action: 'read',   description: 'View users list and details', isSystem: true },
-  { name: 'users:update', module: 'users', action: 'update', description: 'Update user details', isSystem: true },
-  { name: 'users:delete', module: 'users', action: 'delete', description: 'Delete users', isSystem: true },
+  // ── Users (Shared: Staff in Admin, Team in Company) ────────────────────────
+  { name: 'users:create', module: 'users', action: 'create', description: 'Create and invite new users', scope: 'both', isSystem: true },
+  { name: 'users:read',   module: 'users', action: 'read',   description: 'View users list and profiles', scope: 'both', isSystem: true },
+  { name: 'users:update', module: 'users', action: 'update', description: 'Update user profiles, status, and assign roles', scope: 'both', isSystem: true },
+  { name: 'users:delete', module: 'users', action: 'delete', description: 'Deactivate user accounts', scope: 'both', isSystem: true },
 
-  // Roles
-  { name: 'roles:create', module: 'roles', action: 'create', description: 'Create new roles', isSystem: true },
-  { name: 'roles:read',   module: 'roles', action: 'read',   description: 'View roles list and details', isSystem: true },
-  { name: 'roles:update', module: 'roles', action: 'update', description: 'Update role details and permissions', isSystem: true },
-  { name: 'roles:delete', module: 'roles', action: 'delete', description: 'Delete roles', isSystem: true },
+  // ── Roles & Permissions ───────────────────────────────────────────────────
+  { name: 'roles:create', module: 'roles', action: 'create', description: 'Create new custom roles', scope: 'both', isSystem: true },
+  { name: 'roles:read',   module: 'roles', action: 'read',   description: 'View roles list and permissions', scope: 'both', isSystem: true },
+  { name: 'roles:update', module: 'roles', action: 'update', description: 'Update role details and permissions', scope: 'both', isSystem: true },
+  { name: 'roles:delete', module: 'roles', action: 'delete', description: 'Delete custom roles', scope: 'both', isSystem: true },
 
-  // Permissions
-  { name: 'permissions:create', module: 'permissions', action: 'create', description: 'Create new permissions', isSystem: true },
-  { name: 'permissions:read',   module: 'permissions', action: 'read',   description: 'View permissions list', isSystem: true },
-  { name: 'permissions:update', module: 'permissions', action: 'update', description: 'Update permissions', isSystem: true },
-  { name: 'permissions:delete', module: 'permissions', action: 'delete', description: 'Delete permissions', isSystem: true },
+  // ── System Permissions (Admin Only) ───────────────────────────────────────
+  { name: 'permissions:create', module: 'permissions', action: 'create', description: 'Create new permissions', scope: 'admin', isSystem: true },
+  { name: 'permissions:read',   module: 'permissions', action: 'read',   description: 'View system permissions list', scope: 'admin', isSystem: true },
+  { name: 'permissions:update', module: 'permissions', action: 'update', description: 'Update system permissions metadata', scope: 'admin', isSystem: true },
+  { name: 'permissions:delete', module: 'permissions', action: 'delete', description: 'Delete custom permissions', scope: 'admin', isSystem: true },
 
-  // Billing
-  { name: 'billing:read',   module: 'billing', action: 'read',   description: 'View billing records', isSystem: true },
-  { name: 'billing:update', module: 'billing', action: 'update', description: 'Manage billing settings', isSystem: true },
-  { name: 'billing:export', module: 'billing', action: 'export', description: 'Export billing data', isSystem: true },
+  // ── Billing & Plans ────────────────────────────────────────────────────────
+  { name: 'billing:read',   module: 'billing', action: 'read',   description: 'View billing plans, quotas, and subscription details', scope: 'both', isSystem: true },
+  { name: 'billing:update', module: 'billing', action: 'update', description: 'Create, modify, and delete billing plans', scope: 'admin', isSystem: true },
+  { name: 'billing:export', module: 'billing', action: 'export', description: 'Export billing reports and transactions', scope: 'admin', isSystem: true },
 
-  // DID
-  { name: 'did:create', module: 'did', action: 'create', description: 'Assign and create DIDs', isSystem: true },
-  { name: 'did:read',   module: 'did', action: 'read',   description: 'View DID list', isSystem: true },
-  { name: 'did:update', module: 'did', action: 'update', description: 'Update DID settings', isSystem: true },
-  { name: 'did:delete', module: 'did', action: 'delete', description: 'Release DIDs', isSystem: true },
+  // ── DID Numbers ────────────────────────────────────────────────────────────
+  { name: 'did:create',  module: 'did', action: 'create',  description: 'Add new DIDs to system pool', scope: 'admin', isSystem: true },
+  { name: 'did:read',    module: 'did', action: 'read',    description: 'View DID list and history', scope: 'both', isSystem: true },
+  { name: 'did:update',  module: 'did', action: 'update',  description: 'Update DID settings and notes', scope: 'admin', isSystem: true },
+  { name: 'did:delete',  module: 'did', action: 'delete',  description: 'Delete DIDs from platform pool', scope: 'admin', isSystem: true },
+  { name: 'did:assign',  module: 'did', action: 'assign',  description: 'Assign DIDs to companies or users', scope: 'both', isSystem: true },
+  { name: 'did:release', module: 'did', action: 'release', description: 'Release DIDs back to platform pool', scope: 'admin', isSystem: true },
 
-  // Calls / Logs
-  { name: 'calls:read',   module: 'calls', action: 'read',   description: 'View call records', isSystem: true },
-  { name: 'calls:export', module: 'calls', action: 'export', description: 'Export call logs', isSystem: true },
+  // ── Dialer ─────────────────────────────────────────────────────────────────
+  { name: 'dialer:access', module: 'dialer', action: 'access', description: 'Access web dialer / softphone to make and receive calls', scope: 'both', isSystem: true },
 
-  // Agents
-  { name: 'agents:create', module: 'agents', action: 'create', description: 'Create agents', isSystem: true },
-  { name: 'agents:read',   module: 'agents', action: 'read',   description: 'View agents', isSystem: true },
-  { name: 'agents:update', module: 'agents', action: 'update', description: 'Update agent settings', isSystem: true },
-  { name: 'agents:delete', module: 'agents', action: 'delete', description: 'Delete agents', isSystem: true },
+  // ── Calls & Telephony Analytics ────────────────────────────────────────────
+  { name: 'calls:read',       module: 'calls', action: 'read',       description: 'View call history and CDR logs', scope: 'both', isSystem: true },
+  { name: 'calls:notes',      module: 'calls', action: 'notes',      description: 'Add and view notes on calls', scope: 'both', isSystem: true },
+  { name: 'calls:recordings', module: 'calls', action: 'recordings', description: 'Stream call audio recordings & view AI analysis', scope: 'both', isSystem: true },
+  { name: 'calls:export',     module: 'calls', action: 'export',     description: 'Export call records to CSV/Excel', scope: 'both', isSystem: true },
 
-  // Campaigns
-  { name: 'campaigns:create', module: 'campaigns', action: 'create', description: 'Create campaigns', isSystem: true },
-  { name: 'campaigns:read',   module: 'campaigns', action: 'read',   description: 'View campaigns', isSystem: true },
-  { name: 'campaigns:update', module: 'campaigns', action: 'update', description: 'Update campaigns', isSystem: true },
-  { name: 'campaigns:delete', module: 'campaigns', action: 'delete', description: 'Delete campaigns', isSystem: true },
+  // ── IVR & OBD Campaigns ───────────────────────────────────────────────────
+  { name: 'campaigns:create', module: 'campaigns', action: 'create', description: 'Create IVR campaigns and upload audio/CSV', scope: 'both', isSystem: true },
+  { name: 'campaigns:read',   module: 'campaigns', action: 'read',   description: 'View IVR campaigns and OBD lists', scope: 'both', isSystem: true },
+  { name: 'campaigns:update', module: 'campaigns', action: 'update', description: 'Start, pause, or edit campaigns', scope: 'both', isSystem: true },
+  { name: 'campaigns:delete', module: 'campaigns', action: 'delete', description: 'Delete campaigns and audio assets', scope: 'both', isSystem: true },
 
-  // Reports
-  { name: 'reports:read',   module: 'reports', action: 'read',   description: 'View reports', isSystem: true },
-  { name: 'reports:export', module: 'reports', action: 'export', description: 'Export reports', isSystem: true },
+  // ── Omnichannel & Integrations ─────────────────────────────────────────────
+  { name: 'integrations:read',   module: 'integrations', action: 'read',   description: 'View connected integrations and overview', scope: 'both', isSystem: true },
+  { name: 'integrations:manage', module: 'integrations', action: 'manage', description: 'Configure and disconnect platform integrations', scope: 'both', isSystem: true },
+
+  // ── Messenger (Company) ────────────────────────────────────────────────────
+  { name: 'messages:read', module: 'messages', action: 'read', description: 'View customer conversations in Messenger', scope: 'company', isSystem: true },
+  { name: 'messages:send', module: 'messages', action: 'send', description: 'Send replies to Messenger customer chats', scope: 'company', isSystem: true },
+
+  // ── Leads (Company) ────────────────────────────────────────────────────────
+  { name: 'leads:read',   module: 'leads', action: 'read',   description: 'View captured leads and statistics', scope: 'company', isSystem: true },
+  { name: 'leads:create', module: 'leads', action: 'create', description: 'Add single lead or import CSV batch', scope: 'company', isSystem: true },
+  { name: 'leads:update', module: 'leads', action: 'update', description: 'Update lead status, assignment, and notes', scope: 'company', isSystem: true },
+  { name: 'leads:delete', module: 'leads', action: 'delete', description: 'Delete lead records', scope: 'company', isSystem: true },
+
+  // ── Forms (Company) ────────────────────────────────────────────────────────
+  { name: 'forms:read',   module: 'forms', action: 'read',   description: 'View Meta instant forms and submissions', scope: 'company', isSystem: true },
+  { name: 'forms:create', module: 'forms', action: 'create', description: 'Create and map lead capture forms', scope: 'company', isSystem: true },
+
+  // ── Orders (Company Ecommerce) ─────────────────────────────────────────────
+  { name: 'orders:read',   module: 'orders', action: 'read',   description: 'View ecommerce orders list and details', scope: 'company', isSystem: true },
+  { name: 'orders:create', module: 'orders', action: 'create', description: 'Create customer orders', scope: 'company', isSystem: true },
+  { name: 'orders:update', module: 'orders', action: 'update', description: 'Update order status and billing info', scope: 'company', isSystem: true },
+  { name: 'orders:delete', module: 'orders', action: 'delete', description: 'Delete or cancel orders', scope: 'company', isSystem: true },
+
+  // ── AI Agents ──────────────────────────────────────────────────────────────
+  { name: 'agents:create',  module: 'agents', action: 'create',  description: 'Create AI Agent receptionist configs and schemas', scope: 'both', isSystem: true },
+  { name: 'agents:read',    module: 'agents', action: 'read',    description: 'View AI Agent configs, logs, and schemas', scope: 'both', isSystem: true },
+  { name: 'agents:update',  module: 'agents', action: 'update',  description: 'Update AI Agent configurations and prompt scripts', scope: 'both', isSystem: true },
+  { name: 'agents:delete',  module: 'agents', action: 'delete',  description: 'Delete AI Agent configurations and schemas', scope: 'both', isSystem: true },
+  { name: 'agents:trigger', module: 'agents', action: 'trigger', description: 'Trigger outbound AI voice calls', scope: 'both', isSystem: true },
+
+  // ── Reports ────────────────────────────────────────────────────────────────
+  { name: 'reports:read',   module: 'reports', action: 'read',   description: 'View analytics and performance reports', scope: 'both', isSystem: true },
+  { name: 'reports:export', module: 'reports', action: 'export', description: 'Export analytics reports', scope: 'both', isSystem: true },
 ];
 
-const seedDatabase = async () => {
+export const seedDatabase = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/voxa');
     console.log('✅ Connected to MongoDB for seeding');
 
     // 1. Seed Permissions (upsert — safe to run multiple times)
     console.log('\n[1] Seeding permissions...');
-    const permissionNames = [];
+    const allPermissionNames = [];
+    const adminPermissionNames = [];
+    const companyPermissionNames = [];
+
     for (const perm of permissionsData) {
       await Permission.findOneAndUpdate(
         { name: perm.name },
         perm,
         { upsert: true, new: true }
       );
-      permissionNames.push(perm.name);
+      allPermissionNames.push(perm.name);
+      if (perm.scope === 'admin' || perm.scope === 'both') {
+        adminPermissionNames.push(perm.name);
+      }
+      if (perm.scope === 'company' || perm.scope === 'both') {
+        companyPermissionNames.push(perm.name);
+      }
     }
-    console.log(`✅ ${permissionNames.length} permissions seeded.`);
+    console.log(`✅ ${allPermissionNames.length} total permissions seeded (${adminPermissionNames.length} admin, ${companyPermissionNames.length} company).`);
 
     // 1.5 Seed Plans
     console.log('\n[1.5] Seeding Plans...');
@@ -91,21 +132,95 @@ const seedDatabase = async () => {
     await Plan.findOneAndUpdate({ name: 'Enterprise Postpaid' }, { name: 'Enterprise Postpaid', type: 'postpaid', cost: 0, tokens: 5000, description: '5000 tokens cap, pay at end of month' }, { upsert: true });
     console.log(`✅ Plans seeded.`);
 
-    // 2. Seed Super Admin Role (voxa scope — all permissions)
-    console.log('\n[2] Seeding Super Admin role...');
+    // 2. Seed Voxa Designated Admin Roles (scope: 'voxa')
+    console.log('\n[2] Seeding designated Voxa Admin roles...');
+
+    // 2.1 Super Admin (all permissions)
     const superAdminRole = await Role.findOneAndUpdate(
       { name: 'Super Admin', scope: 'voxa' },
       {
         name: 'Super Admin',
-        description: 'Full system access across all modules',
+        description: 'Full system access across all platform modules',
         scope: 'voxa',
         companyId: null,
-        permissions: permissionNames,
+        permissions: allPermissionNames,
         status: 'active'
       },
       { upsert: true, new: true }
     );
-    console.log(`✅ Super Admin role ID: ${superAdminRole._id}`);
+    console.log(`  ✓ Super Admin role: ${superAdminRole._id}`);
+
+    // 2.2 DID Manager
+    const didManagerRole = await Role.findOneAndUpdate(
+      { name: 'DID Manager', scope: 'voxa' },
+      {
+        name: 'DID Manager',
+        description: 'Manages system DID inventory and assigns/releases numbers for companies',
+        scope: 'voxa',
+        companyId: null,
+        permissions: [
+          'did:read', 'did:create', 'did:update', 'did:delete', 'did:assign', 'did:release',
+          'companies:read'
+        ],
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ DID Manager role: ${didManagerRole._id}`);
+
+    // 2.3 Billing and Roles Manager
+    const billingRolesRole = await Role.findOneAndUpdate(
+      { name: 'Billing and Roles Manager', scope: 'voxa' },
+      {
+        name: 'Billing and Roles Manager',
+        description: 'Manages subscription plans, pricing, staff users, and internal access roles',
+        scope: 'voxa',
+        companyId: null,
+        permissions: [
+          'billing:read', 'billing:update', 'billing:export',
+          'roles:read', 'roles:create', 'roles:update', 'roles:delete',
+          'users:read', 'users:update'
+        ],
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Billing and Roles Manager role: ${billingRolesRole._id}`);
+
+    // 2.4 Telephony & Call Auditor
+    const callAuditorRole = await Role.findOneAndUpdate(
+      { name: 'Telephony & Call Auditor', scope: 'voxa' },
+      {
+        name: 'Telephony & Call Auditor',
+        description: 'Monitors platform master call logs, recordings, AI transcription, and analytics',
+        scope: 'voxa',
+        companyId: null,
+        permissions: [
+          'calls:read', 'calls:notes', 'calls:recordings', 'calls:export',
+          'agents:read', 'companies:read'
+        ],
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Telephony & Call Auditor role: ${callAuditorRole._id}`);
+
+    // 2.5 Support & Operations
+    const supportOpsRole = await Role.findOneAndUpdate(
+      { name: 'Support & Operations', scope: 'voxa' },
+      {
+        name: 'Support & Operations',
+        description: 'Operational diagnostics, company inspection, DID overview, and dialer testing',
+        scope: 'voxa',
+        companyId: null,
+        permissions: [
+          'companies:read', 'did:read', 'calls:read', 'agents:read', 'integrations:read', 'dialer:access'
+        ],
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Support & Operations role: ${supportOpsRole._id}`);
 
     // 3. Seed Super Admin User
     console.log('\n[3] Seeding Super Admin user...');
@@ -126,18 +241,43 @@ const seedDatabase = async () => {
     );
     console.log(`✅ Super Admin user: ${superAdminUser.email}`);
 
+    // 4. Seed DID Manager sample user
+    const didUserPasswordHash = await bcrypt.hash('did@12345', 10);
+    const didUser = await User.findOneAndUpdate(
+      { email: 'did.manager@voxa.com' },
+      {
+        email: 'did.manager@voxa.com',
+        fullName: 'Voxa DID Manager',
+        passwordHash: didUserPasswordHash,
+        portal: 'admin',
+        companyId: null,
+        roleId: didManagerRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`✅ DID Manager user seeded: ${didUser.email}`);
+
     console.log('\n🎉 Seeding completed successfully!');
     console.log('─────────────────────────────────');
-    console.log('Login credentials:');
-    console.log('  Email   : admin@voxa.com');
-    console.log('  Password: voxa@123');
-    console.log('  Portal  : admin');
+    console.log('Admin Login credentials:');
+    console.log('  Super Admin : admin@voxa.com / voxa@123');
+    console.log('  DID Manager : did.manager@voxa.com / did@12345');
+    console.log('  Portal      : admin');
     console.log('─────────────────────────────────');
-    process.exit(0);
+    if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
+      process.exit(0);
+    }
   } catch (err) {
     console.error('❌ Error during seeding:', err.message);
-    process.exit(1);
+    if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
+      process.exit(1);
+    }
+    throw err;
   }
 };
 
-seedDatabase();
+if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
+  seedDatabase();
+}
