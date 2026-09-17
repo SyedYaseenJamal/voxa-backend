@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs';
 import Permission from '../modules/permissions/permission.model.js';
 import Role from '../modules/roles/role.model.js';
 import User from '../modules/auth/auth.model.js';
+import Company from '../modules/companies/company.model.js';
+import Did from '../modules/dids/did.model.js';
 
 dotenv.config();
 
@@ -241,7 +243,7 @@ export const seedDatabase = async () => {
     );
     console.log(`✅ Super Admin user: ${superAdminUser.email}`);
 
-    // 4. Seed DID Manager sample user
+    // 3.2 Seed DID Manager sample user
     const didUserPasswordHash = await bcrypt.hash('did@12345', 10);
     const didUser = await User.findOneAndUpdate(
       { email: 'did.manager@voxa.com' },
@@ -257,15 +259,412 @@ export const seedDatabase = async () => {
       },
       { upsert: true, new: true }
     );
-    console.log(`✅ DID Manager user seeded: ${didUser.email}`);
+    console.log(`  ✓ DID Manager user: ${didUser.email}`);
+
+    // 3.3 Seed Billing & Roles Manager user
+    const billingUserHash = await bcrypt.hash('billing@12345', 10);
+    const billingUser = await User.findOneAndUpdate(
+      { email: 'billing.manager@voxa.com' },
+      {
+        email: 'billing.manager@voxa.com',
+        fullName: 'Voxa Billing & Roles Lead',
+        passwordHash: billingUserHash,
+        portal: 'admin',
+        companyId: null,
+        roleId: billingRolesRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Billing Manager user: ${billingUser.email}`);
+
+    // 3.4 Seed Telephony & Call Auditor user
+    const auditorUserHash = await bcrypt.hash('auditor@12345', 10);
+    const auditorUser = await User.findOneAndUpdate(
+      { email: 'call.auditor@voxa.com' },
+      {
+        email: 'call.auditor@voxa.com',
+        fullName: 'Voxa Call Quality Auditor',
+        passwordHash: auditorUserHash,
+        portal: 'admin',
+        companyId: null,
+        roleId: callAuditorRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Telephony Auditor user: ${auditorUser.email}`);
+
+    // 3.5 Seed Support & Operations user
+    const supportUserHash = await bcrypt.hash('support@12345', 10);
+    const supportUser = await User.findOneAndUpdate(
+      { email: 'support.ops@voxa.com' },
+      {
+        email: 'support.ops@voxa.com',
+        fullName: 'Voxa Operations Specialist',
+        passwordHash: supportUserHash,
+        portal: 'admin',
+        companyId: null,
+        roleId: supportOpsRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Support & Ops user: ${supportUser.email}`);
+
+    // 4. Seed Demo Companies
+    console.log('\n[4] Seeding Demo Companies...');
+    const demoCompany = await Company.findOneAndUpdate(
+      { name: 'Acme Corp' },
+      {
+        name: 'Acme Corp',
+        businessType: 'other',
+        status: 'active',
+        billingModel: 'prepaid',
+        maxConcurrentCalls: 10,
+        aiReceptionistEnabled: true,
+        bulkAiCallingEnabled: true,
+        forceHalt: false
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Demo Company (General/Leads): ${demoCompany.name} (${demoCompany._id})`);
+
+    const demoEcommerceCompany = await Company.findOneAndUpdate(
+      { name: 'Acme Commerce' },
+      {
+        name: 'Acme Commerce',
+        businessType: 'ecommerce',
+        status: 'active',
+        billingModel: 'prepaid',
+        maxConcurrentCalls: 10,
+        aiReceptionistEnabled: true,
+        bulkAiCallingEnabled: true,
+        forceHalt: false
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Demo Company (Ecommerce/Orders): ${demoEcommerceCompany.name} (${demoEcommerceCompany._id})`);
+
+    // Ensure Acme Corp has an active DID assigned for telephony/AI tests
+    let assignedDid = await Did.findOne({ company_id: demoCompany._id, status: 'assigned' });
+    if (!assignedDid) {
+      assignedDid = await Did.findOneAndUpdate(
+        { did_number: '02135863050' },
+        {
+          did_number: '02135863050',
+          label: 'Acme Primary Line',
+          notes: 'Seeded test DID for company testing',
+          status: 'assigned',
+          company_id: demoCompany._id
+        },
+        { upsert: true, new: true }
+      );
+      console.log(`  ✓ Assigned DID ${assignedDid.did_number} to ${demoCompany.name}`);
+    } else {
+      console.log(`  ✓ Existing assigned DID found: ${assignedDid.did_number}`);
+    }
+
+    // 5. Seed Designated Company Roles (scope: 'company')
+    console.log('\n[5] Seeding Designated Company Roles for Acme Corp...');
+
+    // 5.1 Company Admin (all company permissions)
+    const companyAdminRole = await Role.findOneAndUpdate(
+      { name: 'Company Admin', scope: 'company', companyId: demoCompany._id },
+      {
+        name: 'Company Admin',
+        description: 'Full administrative control over company users, roles, billing, DIDs, omnichannel, AI agents, campaigns, and call logs',
+        scope: 'company',
+        companyId: demoCompany._id,
+        permissions: companyPermissionNames,
+        status: 'active',
+        deletedAt: null
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Company Admin role: ${companyAdminRole._id} (${companyAdminRole.permissions.length} perms)`);
+
+    // 5.2 Dialer Operator (Strictly dialer & own call logs — all 10 other modules hidden)
+    const dialerOperatorRole = await Role.findOneAndUpdate(
+      { name: 'Dialer Operator', scope: 'company', companyId: demoCompany._id },
+      {
+        name: 'Dialer Operator',
+        description: 'Frontline phone operator restricted solely to web softphone dialer and personal call logs. All admin and management modules hidden',
+        scope: 'company',
+        companyId: demoCompany._id,
+        permissions: ['dialer:access', 'calls:read', 'calls:notes'],
+        status: 'active',
+        deletedAt: null
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Dialer Operator role: ${dialerOperatorRole._id} (${dialerOperatorRole.permissions.length} perms)`);
+
+    // 5.3 Campaign Manager
+    const campaignManagerRole = await Role.findOneAndUpdate(
+      { name: 'Campaign Manager', scope: 'company', companyId: demoCompany._id },
+      {
+        name: 'Campaign Manager',
+        description: 'Manages outbound IVR campaigns, OBD audio broadcasts, captured leads, and marketing forms',
+        scope: 'company',
+        companyId: demoCompany._id,
+        permissions: [
+          'campaigns:create', 'campaigns:read', 'campaigns:update', 'campaigns:delete',
+          'leads:create', 'leads:read', 'leads:update', 'leads:delete',
+          'forms:create', 'forms:read',
+          'messages:read', 'messages:send',
+          'calls:read',
+          'reports:read', 'reports:export'
+        ],
+        status: 'active',
+        deletedAt: null
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Campaign Manager role: ${campaignManagerRole._id} (${campaignManagerRole.permissions.length} perms)`);
+
+    // 5.4 AI Agent Specialist
+    const aiSpecialistRole = await Role.findOneAndUpdate(
+      { name: 'AI Agent Specialist', scope: 'company', companyId: demoCompany._id },
+      {
+        name: 'AI Agent Specialist',
+        description: 'Configures AI voice receptionists, prompts, schemas, triggers outbound calls, and analyzes AI call transcripts',
+        scope: 'company',
+        companyId: demoCompany._id,
+        permissions: [
+          'agents:create', 'agents:read', 'agents:update', 'agents:delete', 'agents:trigger',
+          'calls:read', 'calls:recordings', 'calls:notes',
+          'did:read',
+          'reports:read'
+        ],
+        status: 'active',
+        deletedAt: null
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ AI Agent Specialist role: ${aiSpecialistRole._id} (${aiSpecialistRole.permissions.length} perms)`);
+
+    // 5.5 Customer Support Agent
+    const supportAgentRole = await Role.findOneAndUpdate(
+      { name: 'Customer Support Agent', scope: 'company', companyId: demoCompany._id },
+      {
+        name: 'Customer Support Agent',
+        description: 'Handles live customer chats in Omnichannel Messenger, softphone calls, orders, and lead records',
+        scope: 'company',
+        companyId: demoCompany._id,
+        permissions: [
+          'dialer:access',
+          'calls:read', 'calls:notes',
+          'messages:read', 'messages:send',
+          'integrations:read',
+          'leads:read', 'leads:create', 'leads:update',
+          'orders:read', 'orders:create', 'orders:update'
+        ],
+        status: 'active',
+        deletedAt: null
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Customer Support Agent role: ${supportAgentRole._id} (${supportAgentRole.permissions.length} perms)`);
+
+    // 5.6 Call Center Supervisor
+    const supervisorRole = await Role.findOneAndUpdate(
+      { name: 'Call Center Supervisor', scope: 'company', companyId: demoCompany._id },
+      {
+        name: 'Call Center Supervisor',
+        description: 'Team lead monitoring telephony operations, reviewing call recordings, analyzing team reports, and overseeing campaigns',
+        scope: 'company',
+        companyId: demoCompany._id,
+        permissions: [
+          'calls:read', 'calls:notes', 'calls:recordings', 'calls:export',
+          'dialer:access',
+          'did:read',
+          'campaigns:read',
+          'leads:read',
+          'agents:read',
+          'users:read',
+          'reports:read', 'reports:export'
+        ],
+        status: 'active',
+        deletedAt: null
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Call Center Supervisor role: ${supervisorRole._id} (${supervisorRole.permissions.length} perms)`);
+
+    // Also seed an Ecommerce Company Admin role for Acme Commerce
+    const ecommerceAdminRole = await Role.findOneAndUpdate(
+      { name: 'Company Admin', scope: 'company', companyId: demoEcommerceCompany._id },
+      {
+        name: 'Company Admin',
+        description: 'Full administrative control over ecommerce store',
+        scope: 'company',
+        companyId: demoEcommerceCompany._id,
+        permissions: companyPermissionNames,
+        status: 'active',
+        deletedAt: null
+      },
+      { upsert: true, new: true }
+    );
+
+    // 6. Seed Designated Company Test Users (portal: 'customer')
+    console.log('\n[6] Seeding Designated Company Test Users...');
+    const companyPassHash = await bcrypt.hash('acme@12345', 10);
+    const dialerPassHash = await bcrypt.hash('dialer@12345', 10);
+    const campaignPassHash = await bcrypt.hash('campaign@12345', 10);
+    const aiPassHash = await bcrypt.hash('ai@12345', 10);
+    const supportPassHash = await bcrypt.hash('support@12345', 10);
+    const supervisorPassHash = await bcrypt.hash('supervisor@12345', 10);
+
+    // 6.1 Company Admin: admin@acme.com / acme@12345
+    const companyAdminUser = await User.findOneAndUpdate(
+      { email: 'admin@acme.com' },
+      {
+        email: 'admin@acme.com',
+        fullName: 'Acme Company Admin',
+        passwordHash: companyPassHash,
+        portal: 'customer',
+        companyId: demoCompany._id,
+        roleId: companyAdminRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Company Admin: ${companyAdminUser.email}`);
+
+    // 6.2 Dialer Operator: dialer.operator@acme.com / dialer@12345
+    const dialerOperatorUser = await User.findOneAndUpdate(
+      { email: 'dialer.operator@acme.com' },
+      {
+        email: 'dialer.operator@acme.com',
+        fullName: 'Acme Dialer Operator',
+        passwordHash: dialerPassHash,
+        portal: 'customer',
+        companyId: demoCompany._id,
+        roleId: dialerOperatorRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Dialer Operator: ${dialerOperatorUser.email}`);
+
+    // 6.3 Campaign Manager: campaign.manager@acme.com / campaign@12345
+    const campaignManagerUser = await User.findOneAndUpdate(
+      { email: 'campaign.manager@acme.com' },
+      {
+        email: 'campaign.manager@acme.com',
+        fullName: 'Acme Campaign Manager',
+        passwordHash: campaignPassHash,
+        portal: 'customer',
+        companyId: demoCompany._id,
+        roleId: campaignManagerRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Campaign Manager: ${campaignManagerUser.email}`);
+
+    // 6.4 AI Agent Specialist: ai.specialist@acme.com / ai@12345
+    const aiSpecialistUser = await User.findOneAndUpdate(
+      { email: 'ai.specialist@acme.com' },
+      {
+        email: 'ai.specialist@acme.com',
+        fullName: 'Acme AI Specialist',
+        passwordHash: aiPassHash,
+        portal: 'customer',
+        companyId: demoCompany._id,
+        roleId: aiSpecialistRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ AI Agent Specialist: ${aiSpecialistUser.email}`);
+
+    // 6.5 Customer Support Agent: support.agent@acme.com / support@12345
+    const supportAgentUser = await User.findOneAndUpdate(
+      { email: 'support.agent@acme.com' },
+      {
+        email: 'support.agent@acme.com',
+        fullName: 'Acme Support Agent',
+        passwordHash: supportPassHash,
+        portal: 'customer',
+        companyId: demoCompany._id,
+        roleId: supportAgentRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Customer Support Agent: ${supportAgentUser.email}`);
+
+    // 6.6 Call Center Supervisor: supervisor@acme.com / supervisor@12345
+    const supervisorUser = await User.findOneAndUpdate(
+      { email: 'supervisor@acme.com' },
+      {
+        email: 'supervisor@acme.com',
+        fullName: 'Acme Call Supervisor',
+        passwordHash: supervisorPassHash,
+        portal: 'customer',
+        companyId: demoCompany._id,
+        roleId: supervisorRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Call Center Supervisor: ${supervisorUser.email}`);
+
+    // 6.7 Ecommerce Admin (for testing Order Management): ecommerce.admin@acme.com / acme@12345
+    const ecommerceAdminUser = await User.findOneAndUpdate(
+      { email: 'ecommerce.admin@acme.com' },
+      {
+        email: 'ecommerce.admin@acme.com',
+        fullName: 'Acme Store Admin',
+        passwordHash: companyPassHash,
+        portal: 'customer',
+        companyId: demoEcommerceCompany._id,
+        roleId: ecommerceAdminRole._id,
+        isActive: true,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`  ✓ Ecommerce Admin (Orders enabled): ${ecommerceAdminUser.email}`);
 
     console.log('\n🎉 Seeding completed successfully!');
-    console.log('─────────────────────────────────');
-    console.log('Admin Login credentials:');
-    console.log('  Super Admin : admin@voxa.com / voxa@123');
-    console.log('  DID Manager : did.manager@voxa.com / did@12345');
-    console.log('  Portal      : admin');
-    console.log('─────────────────────────────────');
+    console.log('═════════════════════════════════════════════════════════════════════════════════');
+    console.log('                 VOXA PLATFORM TEST CREDENTIALS');
+    console.log('═════════════════════════════════════════════════════════════════════════════════');
+    console.log('\n🛡️  ADMIN PORTAL (Login URL: /admin/login | portal: "admin")');
+    console.log('─────────────────────────────────────────────────────────────────────────────────');
+    console.log('  Role                     Email                       Password');
+    console.log('  ─────────────────────────────────────────────────────────────────────────────');
+    console.log('  Super Admin              admin@voxa.com              voxa@123');
+    console.log('  DID Manager              did.manager@voxa.com        did@12345');
+    console.log('  Billing & Roles Manager  billing.manager@voxa.com    billing@12345');
+    console.log('  Telephony Auditor        call.auditor@voxa.com       auditor@12345');
+    console.log('  Support & Operations     support.ops@voxa.com        support@12345');
+    console.log('─────────────────────────────────────────────────────────────────────────────────');
+    console.log('\n🏢  COMPANY PORTAL (Login URL: /company/login | portal: "customer")');
+    console.log('─────────────────────────────────────────────────────────────────────────────────');
+    console.log('  Role                     Email                       Password       Visible Modules');
+    console.log('  ─────────────────────────────────────────────────────────────────────────────');
+    console.log('  Company Admin            admin@acme.com              acme@12345     ALL 11 Modules');
+    console.log('  Dialer Operator          dialer.operator@acme.com    dialer@12345   Dialer & Logs only (all others hidden)');
+    console.log('  Campaign Manager         campaign.manager@acme.com   campaign@12345 IVR, Leads, Forms, Logs');
+    console.log('  AI Agent Specialist      ai.specialist@acme.com      ai@12345       AI Agents, DIDs, Logs');
+    console.log('  Customer Support Agent   support.agent@acme.com      support@12345  Dialer, Messenger, Leads, Logs');
+    console.log('  Call Center Supervisor   supervisor@acme.com         supervisor@12345 Logs, Reports, Users(R), DIDs(R)');
+    console.log('  Ecommerce Store Admin    ecommerce.admin@acme.com    acme@12345     Order Management enabled');
+    console.log('═════════════════════════════════════════════════════════════════════════════════');
+
     if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
       process.exit(0);
     }
