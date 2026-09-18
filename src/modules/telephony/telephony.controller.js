@@ -8,17 +8,43 @@ import Company from '../companies/company.model.js';
 import PlatformIntegration from '../integrations/platformIntegration.model.js';
 import { CallAnalysis } from './callAnalysis.model.js';
 import { CallNote } from './callNote.model.js';
-import { findRecordingFile, callPipelineProcess, callPipelineTranscribe, callPipelineSummarize } from './telephony.service.js';
+import {
+  findRecordingFile,
+  callPipelineProcess,
+  callPipelineTranscribe,
+  callPipelineSummarize,
+  fetchAndSyncRecordings,
+  enrichCallsWithRecordings,
+} from './telephony.service.js';
 import { success, error as apiError } from '../../utils/ApiResponse.js';
+
+export const fetchRecordings = async (req, res) => {
+  try {
+    const { tenant_id, date, api_url } = req.body || {};
+    const result = await fetchAndSyncRecordings({ tenant_id, date, api_url });
+    return success(res, result, result.message);
+  } catch (err) {
+    console.error('[Telephony Controller] fetchRecordings Error:', err);
+    return apiError(res, 500, err.message);
+  }
+};
 
 export const checkRecording = async (req, res) => {
   try {
-    const { uniqueid, phone, filename } = req.query;
-    if (!uniqueid && !filename) {
-      return apiError(res, 400, 'uniqueid or filename parameter is required');
+    const { uniqueid, phone, filename, start_time, destination, callerid, did } = req.query;
+    if (!uniqueid && !filename && !phone && !destination && !callerid) {
+      return apiError(res, 400, 'At least one parameter (uniqueid, filename, phone, or destination) is required');
     }
 
-    const filePath = findRecordingFile(uniqueid, phone, filename);
+    const filePath = findRecordingFile({
+      uniqueid,
+      phone,
+      filename,
+      start_time,
+      destination,
+      callerid,
+      did,
+    });
     if (!filePath || !fs.existsSync(filePath)) {
       return apiError(res, 404, 'Recording not found');
     }
@@ -39,8 +65,16 @@ export const checkRecording = async (req, res) => {
 
 export const streamRecording = async (req, res) => {
   try {
-    const { uniqueid, phone, filename } = req.query;
-    const filePath = findRecordingFile(uniqueid, phone, filename);
+    const { uniqueid, phone, filename, start_time, destination, callerid, did } = req.query;
+    const filePath = findRecordingFile({
+      uniqueid,
+      phone,
+      filename,
+      start_time,
+      destination,
+      callerid,
+      did,
+    });
 
     if (!filePath || !fs.existsSync(filePath)) {
       return apiError(res, 404, 'Recording not found');
@@ -99,7 +133,7 @@ export const getCallAnalysis = async (req, res) => {
 
 export const processCall = async (req, res) => {
   try {
-    const { call_id, uniqueid, phone, filename, audio_url, script = 'mixed' } = req.body;
+    const { call_id, uniqueid, phone, filename, start_time, destination, callerid, did, audio_url, script = 'mixed' } = req.body;
     const activeCallId = String(call_id || uniqueid || Date.now());
 
     // Check if already processed and not requested force re-analysis
@@ -112,7 +146,15 @@ export const processCall = async (req, res) => {
       }
     }
 
-    const filePath = findRecordingFile(uniqueid || activeCallId, phone, filename);
+    const filePath = findRecordingFile({
+      uniqueid: uniqueid || activeCallId,
+      phone,
+      filename,
+      start_time,
+      destination,
+      callerid,
+      did,
+    });
     let resolvedAudioUrl = audio_url;
 
     if (!filePath && !resolvedAudioUrl) {
@@ -576,8 +618,10 @@ export const getCompanyCallLogs = async (req, res) => {
       });
     }
 
+    const enrichedLogs = enrichCallsWithRecordings(annotatedCalls);
+
     return success(res, {
-      logs: annotatedCalls,
+      logs: enrichedLogs,
       isCompanyAdmin,
       roleName
     }, 'Company call logs fetched successfully');
@@ -759,8 +803,10 @@ export const getAdminMasterLogs = async (req, res) => {
       ? annotatedCalls.filter(c => c.companyId === filterCompanyId)
       : annotatedCalls;
 
+    const enrichedLogs = enrichCallsWithRecordings(resultCalls);
+
     return success(res, {
-      logs: resultCalls,
+      logs: enrichedLogs,
       totalAll: annotatedCalls.length,
       totalFiltered: resultCalls.length,
     }, 'Admin master call logs fetched successfully');

@@ -3,6 +3,7 @@ import { protect } from '../../middlewares/authenticate.js';
 import {
   checkRecording,
   streamRecording,
+  fetchRecordings,
   getCallAnalysis,
   processCall,
   transcribeCall,
@@ -21,6 +22,7 @@ router.get('/company/logs', protect, requirePermission('calls:read'), getCompany
 router.get('/admin/logs', protect, requirePermission('calls:read'), getAdminMasterLogs);
 router.get('/notes/:callId', protect, requirePermission('calls:read'), getCallNotes);
 router.post('/notes/:callId', protect, requirePermission('calls:notes'), addCallNote);
+router.post('/recordings/fetch', protect, requirePermission('calls:recordings'), fetchRecordings);
 
 /**
  * @swagger
