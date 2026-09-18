@@ -25,6 +25,11 @@ COPY package.json ./
 COPY server.js ./
 COPY src/ ./src/
 
+# Create recordings directories and ensure proper ownership and permissions
+RUN mkdir -p /var/www/voxa-backend/recordings /app/recordings && \
+    chown -R voxauser:voxagroup /var/www /app && \
+    chmod -R 777 /var/www/voxa-backend/recordings /app/recordings
+
 # Use non-root user
 USER voxauser
 

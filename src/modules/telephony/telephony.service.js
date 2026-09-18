@@ -26,32 +26,67 @@ export const RECORDINGS_DIRS = Array.from(new Set([
   'var/data',
   'C:/var/data',
   path.resolve(process.cwd(), 'var', 'data'),
-  '../../../../../data'
+  '../../../../../data',
+  '/tmp/recordings',
+  '/tmp/voxa_recordings'
 ].filter(Boolean)));
 
 /**
+ * Checks if a directory is writable by attempting a quick write probe.
+ */
+export function isDirWritable(dir) {
+  if (!dir) return false;
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const testFile = path.join(dir, `.probe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+    fs.writeFileSync(testFile, '1');
+    fs.unlinkSync(testFile);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Returns primary target recordings directory where new files are saved.
- * Defaults to /var/www/voxa-backend/recordings on server, or local recordings dir.
+ * Ensures the directory is verified writable, with safe fallbacks if permissions are restricted.
  */
 export function getPrimaryRecordingsDir() {
-  if (process.env.RECORDINGS_PATH) {
-    if (!fs.existsSync(process.env.RECORDINGS_PATH)) {
-      try { fs.mkdirSync(process.env.RECORDINGS_PATH, { recursive: true }); } catch (_) {}
+  const preferred = process.env.RECORDINGS_PATH || '/var/www/voxa-backend/recordings';
+
+  try {
+    if (!fs.existsSync(preferred)) {
+      fs.mkdirSync(preferred, { recursive: true });
     }
-    return process.env.RECORDINGS_PATH;
+  } catch (_) {}
+
+  if (isDirWritable(preferred)) {
+    if (!RECORDINGS_DIRS.includes(preferred)) RECORDINGS_DIRS.push(preferred);
+    return preferred;
   }
-  if (fs.existsSync('/var/www/voxa-backend/recordings')) {
-    return '/var/www/voxa-backend/recordings';
-  }
-  if (fs.existsSync('/var/www/voxa-backend')) {
-    const p = '/var/www/voxa-backend/recordings';
-    try { fs.mkdirSync(p, { recursive: true }); return p; } catch (_) {}
-  }
+
+  console.warn(`[RecordingsSync] ⚠️ Preferred recordings directory "${preferred}" is not writable (permission denied).`);
+
+  // Try standard local dir if preferred was different
   const localDir = path.resolve(process.cwd(), 'recordings');
-  if (!fs.existsSync(localDir)) {
-    try { fs.mkdirSync(localDir, { recursive: true }); } catch (_) {}
+  if (localDir !== preferred && isDirWritable(localDir)) {
+    if (!RECORDINGS_DIRS.includes(localDir)) RECORDINGS_DIRS.push(localDir);
+    return localDir;
   }
-  return localDir;
+
+  // Fallback to /tmp/recordings which is always writable in Linux/Docker
+  const tmpDir = path.resolve('/tmp', 'recordings');
+  if (isDirWritable(tmpDir)) {
+    if (!RECORDINGS_DIRS.includes(tmpDir)) {
+      RECORDINGS_DIRS.push(tmpDir);
+    }
+    console.warn(`[RecordingsSync] ↪️ Using writable fallback directory: ${tmpDir}. To persist recordings permanently, run: chmod -R 777 ${preferred}`);
+    return tmpDir;
+  }
+
+  return preferred;
 }
 
 /**
@@ -367,21 +402,49 @@ export async function fetchAndSyncRecordings({ tenant_id = null, date = null, ap
 
     try {
       console.log(`[RecordingsSync] Downloading: ${fileName} from ${cleanUrl}`);
-      const fileRes = await axios({
-        url: cleanUrl,
-        method: 'GET',
-        responseType: 'stream',
-        timeout: 30000
-      });
+      let actualDestPath = destPath;
 
-      const writer = fs.createWriteStream(destPath);
-      await pipeline(fileRes.data, writer);
+      try {
+        const fileRes = await axios({
+          url: cleanUrl,
+          method: 'GET',
+          responseType: 'stream',
+          timeout: 30000
+        });
+
+        const writer = fs.createWriteStream(destPath);
+        await pipeline(fileRes.data, writer);
+      } catch (writeErr) {
+        // If write failed with EACCES (e.g. host bind mount permission issue), try /tmp/recordings fallback
+        if (writeErr.code === 'EACCES') {
+          const fallbackDir = path.resolve('/tmp', 'recordings');
+          if (isDirWritable(fallbackDir)) {
+            actualDestPath = path.join(fallbackDir, fileName);
+            console.warn(`[RecordingsSync] ⚠️ EACCES on ${destPath}. Retrying to fallback ${actualDestPath}...`);
+            const retryRes = await axios({
+              url: cleanUrl,
+              method: 'GET',
+              responseType: 'stream',
+              timeout: 30000
+            });
+            const fallbackWriter = fs.createWriteStream(actualDestPath);
+            await pipeline(retryRes.data, fallbackWriter);
+            if (!RECORDINGS_DIRS.includes(fallbackDir)) {
+              RECORDINGS_DIRS.push(fallbackDir);
+            }
+          } else {
+            throw writeErr;
+          }
+        } else {
+          throw writeErr;
+        }
+      }
 
       downloadedCount++;
       index.push({
         ...rec,
         file_name: fileName,
-        local_path: destPath,
+        local_path: actualDestPath,
         exists: true
       });
     } catch (dlErr) {
@@ -398,17 +461,26 @@ export async function fetchAndSyncRecordings({ tenant_id = null, date = null, ap
     console.log(`[RecordingsSync] Saved index of ${index.length} recordings to ${indexPath}`);
   } catch (idxErr) {
     console.warn(`[RecordingsSync] Could not write index file: ${idxErr.message}`);
+    try {
+      const fallbackIdx = path.join('/tmp', 'recordings', 'recordings_index.json');
+      fs.writeFileSync(fallbackIdx, JSON.stringify(index, null, 2), 'utf8');
+    } catch (_) {}
   }
 
+  const hasPermissionError = failedFiles.some(f => f.error && (f.error.includes('EACCES') || f.error.includes('permission denied')));
+
   return {
-    success: true,
+    success: failedCount === 0 || downloadedCount > 0 || existingCount > 0,
     total: recordings.length,
     newly_downloaded: downloadedCount,
     already_exists: existingCount,
     failed: failedCount,
     failed_files: failedFiles,
     target_directory: targetDir,
-    message: `Successfully processed ${recordings.length} recordings: ${downloadedCount} newly downloaded, ${existingCount} already present${failedCount > 0 ? `, ${failedCount} failed` : ''}.`
+    message: `Processed ${recordings.length} recordings: ${downloadedCount} newly downloaded, ${existingCount} already present${failedCount > 0 ? `, ${failedCount} failed (${failedFiles[0]?.error || 'permission denied'})` : ''}.`,
+    ...(hasPermissionError ? {
+      permission_fix: `Host directory '${targetDir}' is not writable by the container. Please run 'chmod -R 777 ./recordings' (or 'docker exec -u 0 voxa-backend chmod -R 777 /app/recordings') on the server.`
+    } : {})
   };
 }
 
